@@ -23,7 +23,11 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
+import com.codahale.metrics.Timer.Context;
 import io.fluo.accumulo.util.ZookeeperPath;
+import io.fluo.api.config.FluoConfiguration;
 import io.fluo.core.impl.CuratorCnxnListener;
 import io.fluo.core.impl.Environment;
 import io.fluo.core.thrift.OracleService;
@@ -55,6 +59,9 @@ import org.slf4j.LoggerFactory;
 public class OracleClient {
 
   public static final Logger log = LoggerFactory.getLogger(OracleClient.class);
+
+  private final Timer responseTimer;
+  private final Counter stampsCounter;
 
   private Participant currentLeader;
 
@@ -141,6 +148,8 @@ public class OracleClient {
                 localClient = client;
               }
 
+              Context timerContext = responseTimer.time();
+
               start = localClient.getTimestamps(env.getFluoInstanceID(), request.size());
 
               String leaderId = getOracle();
@@ -148,6 +157,9 @@ public class OracleClient {
                 reconnect();
                 continue;
               }
+
+              stampsCounter.inc(request.size());
+              timerContext.close();
 
               break;
 
@@ -264,6 +276,9 @@ public class OracleClient {
 
   private OracleClient(Environment env) throws Exception {
     this.env = env;
+
+    responseTimer = env.getSharedResources().getMetricRegistry().timer(FluoConfiguration.FLUO_PREFIX + ".oracle.client.rpc.getStamps.time");
+    stampsCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.client.stamps");
 
     // TODO make thread exit if idle for a bit, and start one when request arrives
     Thread thread = new Thread(new TimestampRetriever());

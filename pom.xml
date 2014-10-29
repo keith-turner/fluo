@@ -84,6 +84,7 @@
     <module>modules/api</module>
     <module>modules/accumulo</module>
     <module>modules/core</module>
+    <module>modules/metrics</module>
     <module>modules/mapreduce</module>
     <module>modules/cluster</module>
     <module>modules/stress</module>
@@ -132,6 +133,8 @@
           <configuration>
             <excludes>
               <exclude>**/README.md</exclude>
+              <exclude>**/config/metrics.yaml</exclude>
+              <exclude>**/services/io.fluo.core.metrics.ReporterStarter</exclude>
             </excludes>
           </configuration>
           <executions>
@@ -195,6 +198,21 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>io.dropwizard</groupId>
+        <artifactId>dropwizard-configuration</artifactId>
+        <version>0.7.1</version>
+      </dependency>
+      <dependency>
+        <groupId>io.dropwizard</groupId>
+        <artifactId>dropwizard-metrics</artifactId>
+        <version>0.7.1</version>
+      </dependency>
+      <dependency>
+        <groupId>io.dropwizard.metrics</groupId>
+        <artifactId>metrics-core</artifactId>
+        <version>3.1.0</version>
+      </dependency>
+      <dependency>
         <groupId>io.fluo</groupId>
         <artifactId>fluo-api</artifactId>
         <version>${project.version}</version>
@@ -212,6 +230,11 @@
       <dependency>
         <groupId>io.fluo</groupId>
         <artifactId>fluo-mapreduce</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.fluo</groupId>
+        <artifactId>fluo-metrics</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

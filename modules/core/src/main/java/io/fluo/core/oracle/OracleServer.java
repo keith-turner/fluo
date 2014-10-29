@@ -19,10 +19,12 @@ import java.net.InetSocketAddress;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import com.codahale.metrics.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import io.fluo.accumulo.util.LongUtil;
 import io.fluo.accumulo.util.ZookeeperPath;
 import io.fluo.accumulo.util.ZookeeperUtil;
+import io.fluo.api.config.FluoConfiguration;
 import io.fluo.core.impl.CuratorCnxnListener;
 import io.fluo.core.impl.Environment;
 import io.fluo.core.thrift.OracleService;
@@ -64,6 +66,9 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
   
   private static final Logger log = LoggerFactory.getLogger(OracleServer.class);
 
+  private final Counter stampsCounter;
+  private final Counter requestCounter;
+
   public static final long ORACLE_MAX_READ_BUFFER_BYTES = 2048;
   
   private final Environment env;
@@ -90,6 +95,10 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
   
   public OracleServer(Environment env) throws Exception {
     this.env = env;
+
+    stampsCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.server.stamps");
+    requestCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.server.request");
+
     this.cnxnListener = new CuratorCnxnListener();
     this.maxTsPath = ZookeeperPath.ORACLE_MAX_TIMESTAMP;
     this.curTsPath = ZookeeperPath.ORACLE_CUR_TIMESTAMP;
@@ -131,8 +140,17 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
   }
 
   @Override
-  public synchronized long getTimestamps(String id, int num) throws TException {
+  public long getTimestamps(String id, int num) throws TException {
+    long start = _getTimestamps(id, num);
 
+    // do this outside of sync
+    stampsCounter.inc(num);
+    requestCounter.inc();
+
+    return start;
+  }
+
+  private synchronized long _getTimestamps(String id, int num) throws TException {
     if (!started)
       throw new IllegalStateException();
 

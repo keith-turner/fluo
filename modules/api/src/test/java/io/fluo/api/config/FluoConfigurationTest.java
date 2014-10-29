@@ -18,6 +18,7 @@ package io.fluo.api.config;
 import java.io.File;
 import java.util.NoSuchElementException;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -166,5 +167,15 @@ public class FluoConfigurationTest {
     Assert.assertEquals("", config.getAccumuloUser());
     Assert.assertEquals("", config.getAccumuloPassword());
     Assert.assertEquals("", config.getAccumuloTable());
+  }
+
+  @Test
+  public void testMetricsProp() throws Exception {
+    FluoConfiguration config = new FluoConfiguration();
+    config.setMetricsYaml(getClass().getClassLoader().getResourceAsStream("metrics.yaml"));
+    Assert.assertEquals("LS0tCmZyZXF1ZW5jeTogMTAgc2Vjb25kcwpyZXBvcnRlcnM6CiAgLSB0eXBlOiBjb25zb2xlCg==", config.getMetricsYamlBase64());
+    byte[] bytes1 = IOUtils.toByteArray(getClass().getClassLoader().getResourceAsStream("metrics.yaml"));
+    byte[] bytes2 = IOUtils.toByteArray(config.getMetricsYaml());
+    Assert.assertArrayEquals(bytes1, bytes2);
   }
 }

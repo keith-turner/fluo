@@ -16,6 +16,11 @@
 
 package io.fluo.core.impl;
 
+import java.util.concurrent.TimeUnit;
+
+import com.codahale.metrics.MetricRegistry;
+import io.fluo.api.config.FluoConfiguration;
+
 public class TxStats {
   private final long startTime;
   private long lockWaitTime = 0;
@@ -94,5 +99,18 @@ public class TxStats {
 
   void setFinishTime(long t) {
     finishTime = t;
+  }
+
+  public void report(String status, Class<?> execClass, MetricRegistry registry) {
+    String sn = execClass.getSimpleName();
+    String prefix = FluoConfiguration.FLUO_PREFIX + ".tx.";
+    registry.timer(prefix + "lockWait." + sn).update(getLockWaitTime(), TimeUnit.MILLISECONDS);
+    registry.timer(prefix + "time." + sn).update(getTime(), TimeUnit.MILLISECONDS);
+    registry.counter(prefix + "collisions." + sn).inc(getCollisions());
+    registry.counter(prefix + "set." + sn).inc(getEntriesSet());
+    registry.counter(prefix + "read." + sn).inc(getEntriesReturned());
+    registry.counter(prefix + "locks.timedout." + sn).inc(getTimedOutLocks());
+    registry.counter(prefix + "locks.dead." + sn).inc(getDeadLocks());
+    registry.counter(prefix + "status." + status.toLowerCase() + "." + sn).inc();
   }
 }
