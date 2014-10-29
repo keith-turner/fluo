@@ -15,30 +15,28 @@ package io.fluo.metrics.config;
  * limitations under the License.
  */
 
-
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import com.sun.jersey.core.util.Base64;
+import com.codahale.metrics.MetricRegistry;
 import io.dropwizard.configuration.ConfigurationSourceProvider;
 import io.fluo.api.config.FluoConfiguration;
 import io.fluo.core.metrics.ReporterStarter;
+import org.apache.commons.configuration.Configuration;
 
 public class ReporterStarterImpl implements ReporterStarter {
 
   @Override
   public List<AutoCloseable> start(Params params) {
 
-    String base64 = params.getConfiguration().getString(FluoConfiguration.METRICS_YAML_BASE64, "");
-    final byte[] yaml = Base64.decode(base64);
+    final FluoConfiguration conf = new FluoConfiguration(params.getConfiguration());
 
     ConfigurationSourceProvider csp = new ConfigurationSourceProvider() {
       @Override
       public InputStream open(String path) throws IOException {
-        return new ByteArrayInputStream(yaml);
+        return conf.getMetricsYaml();
       }
     };
 
@@ -49,4 +47,26 @@ public class ReporterStarterImpl implements ReporterStarter {
     }
   }
 
+  public static void main(String[] args) {
+    new ReporterStarterImpl().start(new Params() {
+
+      @Override
+      public MetricRegistry getMetricRegistry() {
+        return new MetricRegistry();
+      }
+
+      @Override
+      public String getDomain() {
+
+        return "test";
+      }
+
+      @Override
+      public Configuration getConfiguration() {
+        FluoConfiguration conf = new FluoConfiguration();
+        conf.setMetricsYaml(new ByteArrayInputStream("---\nfrequency: 60 seconds\n".getBytes()));
+        return conf;
+      }
+    });
+  }
 }

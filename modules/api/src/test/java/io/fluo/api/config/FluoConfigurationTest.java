@@ -50,6 +50,7 @@ public class FluoConfigurationTest {
     Assert.assertEquals(FluoConfiguration.ORACLE_MAX_MEMORY_MB_DEFAULT, base.getOracleMaxMemory());
     Assert.assertEquals(FluoConfiguration.ORACLE_NUM_CORES_DEFAULT, base.getOracleNumCores());
     Assert.assertEquals(FluoConfiguration.MINI_CLASS_DEFAULT, base.getMiniClass());
+    Assert.assertEquals(FluoConfiguration.METRICS_YAML_BASE64_DEFAULT, base.getMetricsYamlBase64());
   }
       
   @Test(expected = NoSuchElementException.class)

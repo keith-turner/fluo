@@ -133,7 +133,7 @@
           <configuration>
             <excludes>
               <exclude>**/README.md</exclude>
-              <exclude>**/config/metrics.yaml</exclude>
+              <exclude>**/metrics.yaml</exclude>
               <exclude>**/services/io.fluo.core.metrics.ReporterStarter</exclude>
             </excludes>
           </configuration>

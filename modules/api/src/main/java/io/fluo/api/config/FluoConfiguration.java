@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.xml.bind.DatatypeConverter;
 
+import com.google.common.base.Charsets;
 import org.apache.commons.configuration.CompositeConfiguration;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.ConfigurationException;
@@ -112,6 +113,8 @@ public class FluoConfiguration extends CompositeConfiguration {
   
   // Metrics
   public static final String METRICS_YAML_BASE64 = FLUO_PREFIX + ".metrics.yaml.base64";
+  public static final String METRICS_YAML_BASE64_DEFAULT = DatatypeConverter.printBase64Binary("---\nfrequency: 60 seconds\n".getBytes(Charsets.UTF_8))
+      .replace("\n", "");
 
   public FluoConfiguration() {
     super();
@@ -418,7 +421,7 @@ public class FluoConfiguration extends CompositeConfiguration {
    */
 
   public String getMetricsYamlBase64() {
-    return getString(METRICS_YAML_BASE64, "");
+    return getString(METRICS_YAML_BASE64, METRICS_YAML_BASE64_DEFAULT);
   }
 
   /**
@@ -427,7 +430,7 @@ public class FluoConfiguration extends CompositeConfiguration {
    * @return stream that can be used to read yaml
    */
   public InputStream getMetricsYaml() {
-    return new ByteArrayInputStream(DatatypeConverter.parseBase64Binary(getString(METRICS_YAML_BASE64, "")));
+    return new ByteArrayInputStream(DatatypeConverter.parseBase64Binary(getMetricsYamlBase64()));
   }
 
   protected void setDefault(String key, String val) {
