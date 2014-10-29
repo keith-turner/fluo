@@ -18,8 +18,8 @@ Monitoring Fluo
 
 Fluo core is instrumented using [dropwizard metrics][1].  This allows fluo
 users to easily gather information about Fluo by configuring different
-reporters.  Fluo will allways setup a JMX reporter, regardless of the number of
-reporters configured.  This is done because the dropwizard config mechanism do
+reporters.  Fluo will always setup a JMX reporter, regardless of the number of
+reporters configured.  This is done because the dropwizard config mechanism does
 not currently support the JMX reporter.   The JMX reporter makes it easy to see
 fluo stats in jconsole or jvisualvm.
 
@@ -41,7 +41,7 @@ Fluo client code that uses the basic API or map reduce API can configure
 reporters by setting `io.fluo.metrics.yaml.base64` in `fluo.propeties`.  The
 value of this property should be a single line base64 encoded yaml config.
 This can easily be generated with the following command.  Also,
-FluoConfiguration has some conveince methods for setting this property.
+FluoConfiguration has some convenience methods for setting this property.
 
 ```
 cat conf/metrics.yaml | base64 -w 0
@@ -78,7 +78,7 @@ Metrics reported by Fluo
 
 Some of the metrics reported have the class name as the suffix.  This classname
 is the observer or load task that executed the transactions.   This should
-allow things like transaction collisions to be tracked per a class.  In the
+allow things like transaction collisions to be tracked per class.  In the
 table below this is denoted with `<cn>`.  In the table below `io.flou` is
 shortened to `i.f`.
 
