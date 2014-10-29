@@ -104,13 +104,18 @@ public class TxStats {
   public void report(String status, Class<?> execClass, MetricRegistry registry) {
     String sn = execClass.getSimpleName();
     String prefix = FluoConfiguration.FLUO_PREFIX + ".tx.";
-    registry.timer(prefix + "lockWait." + sn).update(getLockWaitTime(), TimeUnit.MILLISECONDS);
+
+    if (getLockWaitTime() > 0)
+      registry.timer(prefix + "lockWait." + sn).update(getLockWaitTime(), TimeUnit.MILLISECONDS);
     registry.timer(prefix + "time." + sn).update(getTime(), TimeUnit.MILLISECONDS);
-    registry.counter(prefix + "collisions." + sn).inc(getCollisions());
-    registry.counter(prefix + "set." + sn).inc(getEntriesSet());
-    registry.counter(prefix + "read." + sn).inc(getEntriesReturned());
-    registry.counter(prefix + "locks.timedout." + sn).inc(getTimedOutLocks());
-    registry.counter(prefix + "locks.dead." + sn).inc(getDeadLocks());
+    if (getCollisions() > 0)
+      registry.histogram(prefix + "collisions." + sn).update(getCollisions());
+    registry.histogram(prefix + "set." + sn).update(getEntriesSet());
+    registry.histogram(prefix + "read." + sn).update(getEntriesReturned());
+    if (getTimedOutLocks() > 0)
+      registry.histogram(prefix + "locks.timedout." + sn).update(getTimedOutLocks());
+    if (getDeadLocks() > 0)
+      registry.histogram(prefix + "locks.dead." + sn).update(getDeadLocks());
     registry.counter(prefix + "status." + status.toLowerCase() + "." + sn).inc();
   }
 }

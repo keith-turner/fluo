@@ -82,20 +82,22 @@ allow things like transaction collisions to be tracked per class.  In the
 table below this is denoted with `<cn>`.  In the table below `io.flou` is
 shortened to `i.f`.
 
-|Metric                                   | Description                         |
-|-----------------------------------------|-------------------------------------|
-|i.f.tx.lockWait.&lt;cn&gt;               | Tracks the amount of time spent waiting on locks held by other transactions |
-|i.f.tx.time.&lt;cn&gt;                   | Tracks the amount of time each transaction took to execute |
-|i.f.tx.collisions.&lt;cn&gt;             | Tracks the number of row/columns where collisions occurred during a transaction |
-|i.f.tx.set.&lt;cn&gt;                    | Tracks the number of row/columns set by transactions |
-|i.f.tx.read.&lt;cn&gt;                   | Tracks the number of row/columns read by transactions |
-|i.f.tx.locks.timedout.&lt;cn&gt;         | Tracks the number of locks rolled back because of timeout.  These are locks that are held for very long periods by another transaction that appears to be alive based on zookeeper |
-|i.f.tx.locks.dead.&lt;cn&gt;             | Tracks the number of locks rolled back because of a dead transactor.  These are locks held by a process that appears to be dead according to zookeeper |
-|i.f.tx.status.&lt;status&gt;.&lt;cn&gt;  | Tracks the counts for the different ways in which a transaction can terminate |
-|i.f.oracle.client.rpc.getStamps.time     | Tracks time that RPC calls to oracle from client take |
-|i.f.oracle.client.stamps                 | Tracks the number of timestamps allocated by this client |
-|i.f.oracle.server.stamps                 | Tracks the number of timestamps allocated by the oracle |
-|i.f.oracle.server.request                | Tracks the number of request for timestamps from clients.  Clients can request multiple timestamp in a single RPC request |
+|Metric                                   | Type           | Description                         |
+|-----------------------------------------|----------------|-------------------------------------|
+|i.f.tx.lockWait.&lt;cn&gt;               | [Timer][T]     | Time spent waiting on locks held by other transactions.  Only updated when &gt; 0 |
+|i.f.tx.time.&lt;cn&gt;                   | [Timer][T]     | Time each transaction took to execute.  Tracks failed and successful transactions. |
+|i.f.tx.collisions.&lt;cn&gt;             | [Histogram][H] | Updated w/ number of collisions per transaction.  The count is the number of transactions that had a collision.  Only updated when &gt; 0 |
+|i.f.tx.set.&lt;cn&gt;                    | [Histogram][H] | Number of row/columns set by transactions |
+|i.f.tx.read.&lt;cn&gt;                   | [Histogram][H] | Number of row/columns read by transactions that existed.  Need a count of all reads. |
+|i.f.tx.locks.timedout.&lt;cn&gt;         | [Histogram][H] | Number of locks rolled back because of timeout per transaction.  These are locks that are held for very long periods by another transaction that appears to be alive based on zookeeper. Only updated when &gt; 0 |
+|i.f.tx.locks.dead.&lt;cn&gt;             | [Histogram][H] | Number of locks rolled back because of a dead transactor per transaction.  These are locks held by a process that appears to be dead according to zookeeper.  Only updated when &gt; 0 |
+|i.f.tx.status.&lt;status&gt;.&lt;cn&gt;  | [Counter][C]   | Counts for the different ways in which a transaction can terminate |
+|i.f.oracle.client.rpc.getStamps.time     | [Timer][T]     | Time that RPC calls to oracle from client take |
+|i.f.oracle.client.stamps                 | [Histogram][H] | Number of request made to the oracle and the stamps allocated per request per client |
+|i.f.oracle.server.stamps                 | [Histogram][H] | Number of request made to the oracle and the stamps allocated per request |
 
 [1]: https://dropwizard.github.io/metrics/3.1.0/
 [2]: https://dropwizard.github.io/dropwizard/manual/configuration.html#metrics
+[T]: https://dropwizard.github.io/metrics/3.1.0/getting-started/#timers
+[C]: https://dropwizard.github.io/metrics/3.1.0/getting-started/#counters
+[H]: https://dropwizard.github.io/metrics/3.1.0/getting-started/#histograms

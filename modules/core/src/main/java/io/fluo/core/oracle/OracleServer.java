@@ -19,7 +19,7 @@ import java.net.InetSocketAddress;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import com.google.common.annotations.VisibleForTesting;
 import io.fluo.accumulo.util.LongUtil;
 import io.fluo.accumulo.util.ZookeeperPath;
@@ -66,8 +66,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
   
   private static final Logger log = LoggerFactory.getLogger(OracleServer.class);
 
-  private final Counter stampsCounter;
-  private final Counter requestCounter;
+  private final Histogram stampsHistogram;
 
   public static final long ORACLE_MAX_READ_BUFFER_BYTES = 2048;
   
@@ -96,8 +95,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
   public OracleServer(Environment env) throws Exception {
     this.env = env;
 
-    stampsCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.server.stamps");
-    requestCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.server.request");
+    stampsHistogram = env.getSharedResources().getMetricRegistry().histogram(FluoConfiguration.FLUO_PREFIX + ".oracle.server.stamps");
 
     this.cnxnListener = new CuratorCnxnListener();
     this.maxTsPath = ZookeeperPath.ORACLE_MAX_TIMESTAMP;
@@ -144,8 +142,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     long start = _getTimestamps(id, num);
 
     // do this outside of sync
-    stampsCounter.inc(num);
-    requestCounter.inc();
+    stampsHistogram.update(num);
 
     return start;
   }

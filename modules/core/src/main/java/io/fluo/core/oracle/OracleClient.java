@@ -23,7 +23,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import io.fluo.accumulo.util.ZookeeperPath;
@@ -61,7 +61,7 @@ public class OracleClient {
   public static final Logger log = LoggerFactory.getLogger(OracleClient.class);
 
   private final Timer responseTimer;
-  private final Counter stampsCounter;
+  private final Histogram stampsHistogram;
 
   private Participant currentLeader;
 
@@ -158,7 +158,7 @@ public class OracleClient {
                 continue;
               }
 
-              stampsCounter.inc(request.size());
+              stampsHistogram.update(request.size());
               timerContext.close();
 
               break;
@@ -278,7 +278,7 @@ public class OracleClient {
     this.env = env;
 
     responseTimer = env.getSharedResources().getMetricRegistry().timer(FluoConfiguration.FLUO_PREFIX + ".oracle.client.rpc.getStamps.time");
-    stampsCounter = env.getSharedResources().getMetricRegistry().counter(FluoConfiguration.FLUO_PREFIX + ".oracle.client.stamps");
+    stampsHistogram = env.getSharedResources().getMetricRegistry().histogram(FluoConfiguration.FLUO_PREFIX + ".oracle.client.stamps");
 
     // TODO make thread exit if idle for a bit, and start one when request arrives
     Thread thread = new Thread(new TimestampRetriever());
