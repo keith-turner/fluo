@@ -29,6 +29,8 @@
   <name>Metrics</name>
   <description>
     This module contains code needed to configure dropwizard metrics reporters.
+    The reason this module was created was to avoid adding dependencies to fluo-core 
+    for an optional feature.
   </description>
 
   <dependencies>
@@ -39,6 +41,14 @@
     <dependency> 
       <groupId>io.dropwizard</groupId> 
       <artifactId>dropwizard-metrics</artifactId> 
+    </dependency>
+    <dependency> 
+      <groupId>io.dropwizard</groupId> 
+      <artifactId>dropwizard-metrics-ganglia</artifactId> 
+    </dependency>
+    <dependency> 
+      <groupId>io.dropwizard</groupId> 
+      <artifactId>dropwizard-metrics-graphite</artifactId> 
     </dependency>
     <dependency>
       <groupId>io.fluo</groupId>

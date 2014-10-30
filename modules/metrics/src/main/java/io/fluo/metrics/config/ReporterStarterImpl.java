@@ -1,4 +1,3 @@
-package io.fluo.metrics.config;
 /*
  * Copyright 2014 Fluo authors (see AUTHORS)
  *
@@ -14,6 +13,8 @@ package io.fluo.metrics.config;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.fluo.metrics.config;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

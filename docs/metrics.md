@@ -84,17 +84,28 @@ shortened to `i.f`.
 
 |Metric                                   | Type           | Description                         |
 |-----------------------------------------|----------------|-------------------------------------|
-|i.f.tx.lockWait.&lt;cn&gt;               | [Timer][T]     | Time spent waiting on locks held by other transactions.  Only updated when &gt; 0 |
-|i.f.tx.time.&lt;cn&gt;                   | [Timer][T]     | Time each transaction took to execute.  Tracks failed and successful transactions. |
-|i.f.tx.collisions.&lt;cn&gt;             | [Histogram][H] | Updated w/ number of collisions per transaction.  The count is the number of transactions that had a collision.  Only updated when &gt; 0 |
-|i.f.tx.set.&lt;cn&gt;                    | [Histogram][H] | Number of row/columns set by transactions |
-|i.f.tx.read.&lt;cn&gt;                   | [Histogram][H] | Number of row/columns read by transactions that existed.  Need a count of all reads. |
-|i.f.tx.locks.timedout.&lt;cn&gt;         | [Histogram][H] | Number of locks rolled back because of timeout per transaction.  These are locks that are held for very long periods by another transaction that appears to be alive based on zookeeper. Only updated when &gt; 0 |
-|i.f.tx.locks.dead.&lt;cn&gt;             | [Histogram][H] | Number of locks rolled back because of a dead transactor per transaction.  These are locks held by a process that appears to be dead according to zookeeper.  Only updated when &gt; 0 |
-|i.f.tx.status.&lt;status&gt;.&lt;cn&gt;  | [Counter][C]   | Counts for the different ways in which a transaction can terminate |
-|i.f.oracle.client.rpc.getStamps.time     | [Timer][T]     | Time that RPC calls to oracle from client take |
-|i.f.oracle.client.stamps                 | [Histogram][H] | Number of request made to the oracle and the stamps allocated per request per client |
-|i.f.oracle.server.stamps                 | [Histogram][H] | Number of request made to the oracle and the stamps allocated per request |
+|i.f.tx.lockWait.&lt;cn&gt;               | [Timer][T]     | *WHEN:* After each transaction. *COND:* &gt; 0 *WHAT:* Time transaction spent waiting on locks held by other transactions.   |
+|i.f.tx.time.&lt;cn&gt;                   | [Timer][T]     | *WHEN:* After each transaction. *WHAT:* Time transaction took to execute.  Updated for failed and successful transactions. |
+|i.f.tx.collisions.&lt;cn&gt;             | [Histogram][H] | *WHEN:* After each transaction. *COND:* &gt; 0 *WHAT:* Number of collisions a transaction had.  |
+|i.f.tx.set.&lt;cn&gt;                    | [Histogram][H] | *WHEN:* After each transaction. *WHAT:* Number of row/columns set by transaction |
+|i.f.tx.read.&lt;cn&gt;                   | [Histogram][H] | *WHEN:* After each transaction. *WHAT:* Number of row/columns read by transaction that existed.  There is currently no count of all reads (including non-existant data) |
+|i.f.tx.locks.timedout.&lt;cn&gt;         | [Histogram][H] | *WHEN:* After each transaction. *COND:* &gt; 0 *WHAT:* Number of timedout locks rolled back by transaction.  These are locks that are held for very long periods by another transaction that appears to be alive based on zookeeper.  |
+|i.f.tx.locks.dead.&lt;cn&gt;             | [Histogram][H] | *WHEN:* After each transaction. *COND:* &gt; 0 *WHAT:* Number of dead locks rolled by a transaction.  These are locks held by a process that appears to be dead according to zookeeper.  |
+|i.f.tx.status.&lt;status&gt;.&lt;cn&gt;  | [Counter][C]   | *WHEN:* After each transaction.  *WHAT:* Counts for the different ways a transaction can terminate |
+|i.f.oracle.client.rpc.getStamps.time     | [Timer][T]     | *WHEN:* For each request for stamps to the server. *WHAT:* Time RPC call to oracle took |
+|i.f.oracle.client.stamps                 | [Histogram][H] | *WHEN:* For each request for stamps to the server. *WHAT:*  The number of stamps requested. |
+|i.f.oracle.server.stamps                 | [Histogram][H] | *WHEN:* For each request for stamps from a client.  *WHAT:* The number of stamps requested    |
+
+The table above outlines when a particular metric is updated and whats updated.
+The use of *COND* indicates that the metric is not always updated.   For
+example `i.f.tx.lockWait.<cn>` is only updated for transactions that had a non
+zero lock wait time.  
+
+Histograms and Timers have a counter.  In the case of a histogram, the counter
+is the number of times the metric was updated and not a sum of the updates.
+For example if a request for 5 timestamps was made to the oracle followed by a
+request for 3 timestamps, then the count for `i.f.oracle.server.stamps` would
+be 2 and the mean would be (5+3)/2.
 
 [1]: https://dropwizard.github.io/metrics/3.1.0/
 [2]: https://dropwizard.github.io/dropwizard/manual/configuration.html#metrics

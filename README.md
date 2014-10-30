@@ -83,8 +83,10 @@ Fluo cluster.
 Metrics
 -------
 
-Fluo is instrumented using [Dropwizard metrics][Metrics].  See the [metrics
-documentation](docs/metrics.md) for more information.
+Fluo is instrumented using [Dropwizard metrics][Metrics].   Fluo metrics are
+visible via JMX or can be configured to be sent to graphing tools like Graphite
+and Ganglia.  See the [metrics documentation](docs/metrics.md) for more
+information.
 
 
 [Accumulo]: http://accumulo.apache.org

@@ -1,4 +1,3 @@
-package io.fluo.metrics.config;
 /*
  * Copyright 2014 Fluo authors (see AUTHORS)
  *
@@ -14,7 +13,7 @@ package io.fluo.metrics.config;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+package io.fluo.metrics.config;
 
 
 import java.io.File;
@@ -50,6 +49,7 @@ public class Reporters implements AutoCloseable {
     this.reporters = reporters;
   }
 
+  @Override
   public void close() {
     for (AutoCloseable reporter : reporters) {
       try {
@@ -71,7 +71,7 @@ public class Reporters implements AutoCloseable {
 
   static List<AutoCloseable> startReporters(MetricRegistry registry, ConfigurationSourceProvider csp, String path, String domain) throws Exception {
 
-    // this method was intentionally put in cluster module instead of core module inorder to avoid pulling in extra deps for core.
+    // this method was intentionally put in metrics module instead of core module inorder to avoid pulling in extra deps for core.
 
     List<AutoCloseable> reporterList = new ArrayList<>();
 
