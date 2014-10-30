@@ -23,11 +23,11 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import io.fluo.core.metrics.MetricNames;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import io.fluo.accumulo.util.ZookeeperPath;
-import io.fluo.api.config.FluoConfiguration;
 import io.fluo.core.impl.CuratorCnxnListener;
 import io.fluo.core.impl.Environment;
 import io.fluo.core.thrift.OracleService;
@@ -277,8 +277,8 @@ public class OracleClient {
   private OracleClient(Environment env) throws Exception {
     this.env = env;
 
-    responseTimer = env.getSharedResources().getMetricRegistry().timer(FluoConfiguration.FLUO_PREFIX + ".oracle.client.rpc.getStamps.time");
-    stampsHistogram = env.getSharedResources().getMetricRegistry().histogram(FluoConfiguration.FLUO_PREFIX + ".oracle.client.stamps");
+    responseTimer = env.getSharedResources().getMetricRegistry().timer(MetricNames.ORACLE_CLIENT_GET_STAMPS);
+    stampsHistogram = env.getSharedResources().getMetricRegistry().histogram(MetricNames.ORCALE_CLIENT_STAMPS);
 
     // TODO make thread exit if idle for a bit, and start one when request arrives
     Thread thread = new Thread(new TimestampRetriever());

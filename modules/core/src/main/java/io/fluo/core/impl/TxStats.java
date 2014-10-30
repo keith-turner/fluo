@@ -19,7 +19,7 @@ package io.fluo.core.impl;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.MetricRegistry;
-import io.fluo.api.config.FluoConfiguration;
+import io.fluo.core.metrics.MetricNames;
 
 public class TxStats {
   private final long startTime;
@@ -103,19 +103,17 @@ public class TxStats {
 
   public void report(String status, Class<?> execClass, MetricRegistry registry) {
     String sn = execClass.getSimpleName();
-    String prefix = FluoConfiguration.FLUO_PREFIX + ".tx.";
-
     if (getLockWaitTime() > 0)
-      registry.timer(prefix + "lockWait." + sn).update(getLockWaitTime(), TimeUnit.MILLISECONDS);
-    registry.timer(prefix + "time." + sn).update(getTime(), TimeUnit.MILLISECONDS);
+      registry.timer(MetricNames.TX_LOCKWAIT + sn).update(getLockWaitTime(), TimeUnit.MILLISECONDS);
+    registry.timer(MetricNames.TX_TIME + sn).update(getTime(), TimeUnit.MILLISECONDS);
     if (getCollisions() > 0)
-      registry.histogram(prefix + "collisions." + sn).update(getCollisions());
-    registry.histogram(prefix + "set." + sn).update(getEntriesSet());
-    registry.histogram(prefix + "read." + sn).update(getEntriesReturned());
+      registry.histogram(MetricNames.TX_COLLISIONS + sn).update(getCollisions());
+    registry.histogram(MetricNames.TX_SET + sn).update(getEntriesSet());
+    registry.histogram(MetricNames.TX_READ + sn).update(getEntriesReturned());
     if (getTimedOutLocks() > 0)
-      registry.histogram(prefix + "locks.timedout." + sn).update(getTimedOutLocks());
+      registry.histogram(MetricNames.TX_LOCKS_TIMEDOUT + sn).update(getTimedOutLocks());
     if (getDeadLocks() > 0)
-      registry.histogram(prefix + "locks.dead." + sn).update(getDeadLocks());
-    registry.counter(prefix + "status." + status.toLowerCase() + "." + sn).inc();
+      registry.histogram(MetricNames.TX_LOCKS_DEAD + sn).update(getDeadLocks());
+    registry.counter(MetricNames.TX_STATUS + status.toLowerCase() + "." + sn).inc();
   }
 }
