@@ -44,4 +44,4 @@ $HADOOP_PREFIX/bin/hdfs dfs -copyFromLocal -f $FLUO_HOME/lib/fluo-api-*.jar /flu
 echo "Copying `ls $FLUO_HOME/lib/fluo-accumulo-*.jar` to HDFS"
 $HADOOP_PREFIX/bin/hdfs dfs -copyFromLocal -f $FLUO_HOME/lib/fluo-accumulo-*.jar /fluo/lib/
 
-java -cp "$FLUO_LIB_DIR/*:$FLUO_LIB_DIR/logback/*:$FLUO_LIB_DIR/observers/*" io.fluo.cluster.init.Init -config-dir $FLUO_CONF_DIR $1
+java -cp "$FLUO_LIB_DIR/core/*:$FLUO_LIB_DIR/cluster/*:$FLUO_LIB_DIR/observers/*:$FLUO_DEPENDENCIES_CLASSPATH" io.fluo.cluster.init.Init -config-dir $FLUO_CONF_DIR $1

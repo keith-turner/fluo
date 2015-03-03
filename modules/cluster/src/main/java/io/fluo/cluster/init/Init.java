@@ -20,8 +20,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
+//import ch.qos.logback.classic.Level;
+//import ch.qos.logback.classic.Logger;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
 import io.fluo.api.client.FluoAdmin;
@@ -70,8 +70,8 @@ public class Init {
       System.exit(0);
     }
     
-    Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-    root.setLevel(Level.ERROR);
+    //Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+    //root.setLevel(Level.ERROR);
 
     FluoConfiguration config = new FluoConfiguration(new File(commandOpts.getFluoProps()));
     if (!config.hasRequiredAdminProps()) {
