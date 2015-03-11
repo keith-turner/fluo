@@ -27,7 +27,7 @@ import io.fluo.accumulo.util.ZookeeperPath;
 import io.fluo.api.config.FluoConfiguration;
 import io.fluo.cluster.FluoOracleMain;
 import io.fluo.cluster.FluoWorkerMain;
-//import io.fluo.cluster.util.LogbackUtil;
+import io.fluo.cluster.util.LogbackUtil;
 import io.fluo.core.client.FluoAdminImpl;
 import io.fluo.core.util.CuratorUtil;
 import org.apache.commons.configuration.ConfigurationException;
@@ -267,7 +267,7 @@ public class YarnAdmin {
       System.exit(-1);
     }
 
-    //LogbackUtil.init("ClusterAdmin", options.getFluoConf(), "STDOUT", false);
+    LogbackUtil.init("ClusterAdmin", options.getFluoConf(), "STDOUT", false);
 
     File configFile = new File(options.getFluoConf() + "/fluo.properties");
     config = new FluoConfiguration(configFile);

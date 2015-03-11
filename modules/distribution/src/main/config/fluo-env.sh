@@ -16,15 +16,3 @@
 # export statement to use the correct directory.  Remove the test
 # statement to override any previously set environment.
 test -z "$HADOOP_PREFIX" && export HADOOP_PREFIX=/path/to/hadoop
-
-
-test -z "$ACCUMULO_HOME" && ACCUMULO_HOME=/opt/accumulo
-test -z "$ZOOKEEPER_HOME" && ZOOKEEPER_HOME=/opt/zookeeper
-
-ACCUMULO_CLASSPATH="$ACCUMULO_HOME/lib/*"
-HADOOP_CLASSPATH=`$HADOOP_PREFIX/bin/hadoop classpath`
-ZOOKEEPER_CLASSPATH="$ZOOKEEPER_HOME/*"
-
-#set FLUO_DEPENDENCIES_CLASSPATH to use dependencies installed on system.  otherwise fluo will use $FLUO_HOME/lib/dependencies
-FLUO_DEPENDENCIES_CLASSPATH="$ACCUMULO_CLASSPATH:$ZOOKEEPER_CLASSPATH:$HADOOP_CLASSPATH"
-
