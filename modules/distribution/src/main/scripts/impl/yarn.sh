@@ -38,7 +38,7 @@ if [ ! -d "$HADOOP_PREFIX" ]; then
 fi
 
 ADMIN_OPTS="-fluo-conf $FLUO_CONF_DIR -fluo-lib $FLUO_LIB_DIR -hadoop-prefix $HADOOP_PREFIX"
-ADMIN_LIB="$FLUO_LIB_DIR/*:$FLUO_LIB_DIR/logback/*"
+ADMIN_LIB="$FLUO_LIB_DIR/client/*:$FLUO_LIB_DIR/cluster/*:$FLUO_LIB_DIR/logback/*"
 
 case "$1" in
 start)

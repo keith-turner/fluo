@@ -32,7 +32,7 @@ SERVICE="mini"
 MINI_OPTS="-config-dir $FLUO_CONF_DIR -log-output $FLUO_LOG_DIR"
 MINI_OUT=${FLUO_LOG_DIR}/${SERVICE}_${LOGHOST}.out
 MINI_ERR=${FLUO_LOG_DIR}/${SERVICE}_${LOGHOST}.err
-MINI_LIB="$FLUO_LIB_DIR/*:$FLUO_LIB_DIR/log4j/*"
+MINI_LIB="$FLUO_LIB_DIR/client/*:$FLUO_LIB_DIR/log4j/*"
 
 case "$1" in
 start)

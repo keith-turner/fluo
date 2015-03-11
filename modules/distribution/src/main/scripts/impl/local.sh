@@ -30,7 +30,7 @@ script=$( basename "$SOURCE" )
 LOGHOST=$(hostname)
 
 LOCAL_OPTS="-config-dir $FLUO_CONF_DIR -log-output $FLUO_LOG_DIR"
-LOCAL_LIB="$FLUO_LIB_DIR/*:$FLUO_LIB_DIR/logback/*"
+LOCAL_LIB="$FLUO_LIB_DIR/client/*:$FLUO_LIB_DIR/cluster/*:$FLUO_LIB_DIR/logback/*"
 
 case "$1" in
 start-oracle)

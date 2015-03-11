@@ -27,4 +27,4 @@ script=$( basename "$SOURCE" )
 
 . "$impl"/config.sh
 
-java -cp "$FLUO_LIB_DIR/*:$FLUO_LIB_DIR/logback/*" io.fluo.cluster.scan.Scan -config-dir $FLUO_CONF_DIR $1
+java -cp "$FLUO_LIB_DIR/client/*:$FLUO_LIB_DIR/logback/*" io.fluo.cluster.scan.Scan -config-dir $FLUO_CONF_DIR $1
