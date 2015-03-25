@@ -56,6 +56,9 @@ status)
 info)
   java -cp "$ADMIN_LIB" io.fluo.cluster.yarn.YarnAdmin $ADMIN_OPTS -command info
 	;;
+csv)
+  java -cp "$ADMIN_LIB" io.fluo.cluster.yarn.YarnAdmin $ADMIN_OPTS -command csv
+	;;
 *)
 	echo -e "Usage: fluo yarn <argument>\n"
   echo -e "Possible arguments:\n"
@@ -63,6 +66,7 @@ info)
   echo "  stop      Stops Fluo instance in YARN"
   echo "  status    Prints status of Fluo instance in YARN"
   echo "  info      Prints information on Fluo containers"
+  echo "  csv       Prints information on Fluo containers (as CSV)"
   echo "  kill      Kills Fluo instance in YARN"
   exit 1
 esac

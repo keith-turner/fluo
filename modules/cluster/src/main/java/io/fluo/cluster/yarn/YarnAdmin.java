@@ -50,7 +50,7 @@ import static io.fluo.cluster.yarn.FluoTwillApp.FLUO_APP_NAME;
 public class YarnAdmin {
 
   private static final Logger log = LoggerFactory.getLogger(YarnAdmin.class);
-  
+
   public static final String OBSERVER_DIR = "/observers";
 
   private static YarnOptions options;
@@ -80,7 +80,7 @@ public class YarnAdmin {
       System.err.println("Failed to start Fluo instance because fluo.properties is missing required properties.");
       System.exit(-1);
     }
-    
+
     try {
       config.validate();
     } catch (IllegalArgumentException e) {
@@ -91,10 +91,10 @@ public class YarnAdmin {
       e.printStackTrace();
       System.exit(-1);
     }
-    
+
     preparer = twillRunner.prepare(new FluoTwillApp(config, options.getFluoConf()));
-    
-    // Add jars from fluo lib/ directory that are not being loaded by Twill. 
+
+    // Add jars from fluo lib/ directory that are not being loaded by Twill.
     File libDir = new File(options.getFluoLib());
     for (File f : libDir.listFiles()) {
       if (f.isFile()) {
@@ -114,23 +114,23 @@ public class YarnAdmin {
 
     Preconditions.checkNotNull(preparer, "Failed to prepare twill application");
     TwillController controller = preparer.start();
-    
+
     log.info("Starting Fluo instance in YARN...");
     controller.start();
 
     // set twill run id zookeeper
     String twillId = controller.getRunId().toString();
     CuratorUtil.putData(curator, ZookeeperPath.YARN_TWILL_ID, twillId.getBytes(StandardCharsets.UTF_8), CuratorUtil.NodeExistsPolicy.FAIL);
-    
+
     while (controller.isRunning() == false) {
       Thread.sleep(500);
     }
     // set app id in zookeeper
     String appId = controller.getResourceReport().getApplicationId();
     CuratorUtil.putData(curator, ZookeeperPath.YARN_APP_ID, appId.getBytes(StandardCharsets.UTF_8), CuratorUtil.NodeExistsPolicy.FAIL);
-    
+
     log.info("Fluo instance is running in YARN " + getAppInfo());
-    
+
     log.info("Waiting for all desired containers to start...");
     int checks = 0;
     while (allContainersRunning(controller) == false) {
@@ -142,7 +142,7 @@ public class YarnAdmin {
     }
     log.info("Fluo instance is running all desired containers in YARN " + getAppInfo());
   }
-  
+
   private static void stop() throws Exception {
 
     String twillId = verifyTwillId();
@@ -157,9 +157,9 @@ public class YarnAdmin {
     }
     deleteZkData();
   }
-  
+
   private static void kill() throws Exception {
-    
+
     String twillId = verifyTwillId();
 
     TwillController controller = twillRunner.lookup(FLUO_APP_NAME, RunIds.fromString(twillId));
@@ -172,17 +172,17 @@ public class YarnAdmin {
     }
     deleteZkData();
   }
-  
+
   private static boolean allContainersRunning(TwillController controller) {
     return TwillUtil.numRunning(controller, FluoOracleMain.ORACLE_NAME) == config.getOracleInstances()
         && TwillUtil.numRunning(controller, FluoWorkerMain.WORKER_NAME) == config.getWorkerInstances();
   }
-  
+
   private static String containerStatus(TwillController controller) {
     return "" + TwillUtil.numRunning(controller, FluoOracleMain.ORACLE_NAME) + " of " + config.getOracleInstances() +
         " Oracle containers and " + TwillUtil.numRunning(controller, FluoWorkerMain.WORKER_NAME) + " of " + config.getWorkerInstances() + " Worker containers";
   }
-  
+
   private static void status(boolean extraInfo) throws Exception {
     if (twillIdExists() == false) {
       System.out.println("A Fluo instance is not running in YARN.");
@@ -196,7 +196,7 @@ public class YarnAdmin {
     } else {
       State state = controller.state();
       System.out.println("A Fluo instance is " + state + " in YARN " + getFullInfo());
-      
+
       if (state.equals(State.RUNNING) && (allContainersRunning(controller) == false)) {
         System.out.println("\nWARNING - Fluo is not running all desired containers!  YARN may not have enough available resources.  Fluo is currently running " + containerStatus(controller));
       }
@@ -212,7 +212,29 @@ public class YarnAdmin {
       }
     }
   }
-  
+
+  private static void csv() throws Exception {
+    if (twillIdExists() == false) {
+      System.out.println("A Fluo instance is not running in YARN.");
+      return;
+    }
+    String twillId = getTwillId();
+    TwillController controller = twillRunner.lookup(FLUO_APP_NAME, RunIds.fromString(twillId));
+    if (controller == null) {
+      logExistsButNotRunning();
+      System.err.println("You can clean up this reference by running 'fluo yarn stop' or 'fluo yarn kill'.");
+    } else {
+
+      TwillUtil.printResourcesCSVHeader();
+
+      Collection<TwillRunResources> resources = controller.getResourceReport().getRunnableResources(FluoOracleMain.ORACLE_NAME);
+      TwillUtil.printResourcesCSV(resources, "oracle");
+
+      resources = controller.getResourceReport().getRunnableResources(FluoWorkerMain.WORKER_NAME);
+      TwillUtil.printResourcesCSV(resources, "worker");
+    }
+  }
+
   private static String verifyTwillId() throws Exception {
     if (twillIdExists() == false) {
       System.err.println("WARNING - A YARN application is not referenced in Zookeeper for this Fluo instance.  Check if there is a Fluo instance "
@@ -225,15 +247,15 @@ public class YarnAdmin {
   private static void logExistsButNotRunning() throws Exception {
     System.err.println("WARNING - A Fluo instance is not running in YARN but an instance " + getAppInfo() + " is referenced in Zookeeper");
   }
-  
+
   private static String getAppInfo() throws Exception {
     return "(yarn id = " + getAppId() + ")";
   }
-  
+
   private static String getFullInfo() throws Exception {
     return "(yarn id = " + getAppId() + ", twill id = "+ getTwillId() + ")";
   }
-   
+
   private static boolean twillIdExists() throws Exception {
     return curator.checkExists().forPath(ZookeeperPath.YARN_TWILL_ID) != null;
   }
@@ -246,11 +268,11 @@ public class YarnAdmin {
     curator.delete().forPath(ZookeeperPath.YARN_TWILL_ID);
     curator.delete().forPath(ZookeeperPath.YARN_APP_ID);
   }
-     
+
   private static String getAppId() throws Exception {
     return new String(curator.getData().forPath(ZookeeperPath.YARN_APP_ID), StandardCharsets.UTF_8);
   }
-  
+
   public static void main(String[] args) throws Exception {
 
     options = new YarnOptions();
@@ -302,6 +324,9 @@ public class YarnAdmin {
             break;
           case "info":
             status(true);
+            break;
+          case "csv":
+            csv();
             break;
           default:
             log.error("Unknown command: " + options.getCommand());

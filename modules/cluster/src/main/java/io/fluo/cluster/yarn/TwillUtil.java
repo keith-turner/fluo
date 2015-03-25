@@ -24,9 +24,9 @@ import org.apache.twill.api.TwillRunResources;
  * Twill Utility classes
  */
 public class TwillUtil {
-  
+
   private TwillUtil() {}
-    
+
   public static int numRunning(TwillController controller, String runnableName) {
     return controller.getResourceReport().getRunnableResources(runnableName).size();
   }
@@ -38,5 +38,15 @@ public class TwillUtil {
       System.out.format("%-9s %-6s %4s MB    %-40s %s\n", resources.getInstanceId(), resources.getVirtualCores(), resources.getMemoryMB(),
           resources.getContainerId(), resources.getHost());
     }
+  }
+
+  static void printResourcesCSV(Collection<TwillRunResources> resources, String type) {
+    for (TwillRunResources res : resources) {
+      System.out.printf("%s,%d,%d,%d,%s,%s\n", type, res.getInstanceId(), res.getVirtualCores(), res.getMemoryMB(), res.getContainerId(), res.getHost());
+    }
+  }
+
+  public static void printResourcesCSVHeader() {
+    System.out.printf("%s,%s,%s,%s,%s,%s\n", "fluo_type","instance_id","vcores", "memory_mb", "container_id", "host");
   }
 }
