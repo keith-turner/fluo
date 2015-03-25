@@ -22,7 +22,7 @@ import random
 import time
 
 while True:
-  proc = Popen("./bin/fluo-dev fluo yarn csv", shell=True, bufsize=1, stdout=PIPE)
+  proc = Popen("$FLUO_HOME/bin/fluo yarn csv", shell=True, bufsize=1, stdout=PIPE)
   csv_reader = csv.DictReader(proc.stdout)
 
   workers=[]
