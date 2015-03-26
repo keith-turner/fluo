@@ -39,11 +39,13 @@ while True:
       workers.append(row)
   proc.wait()
 
-  for i in range(0, numToKill):
+  for i in range(0, int(numToKill)):
     worker = random.choice(workers)
     print "Killing "+worker['container_id']+" "+worker['host']
-    call(['ssh',worker['host'],"pkill -9 -f "+worker['container_id']])
+    cid=worker['container_id']
+    cid=cid[:-1]+'['+cid[-1]+']'
+    call(['ssh',worker['host'],"pkill -9 -f "+cid])
     workers.remove(worker)
 
-  time.sleep(sleepTime)
+  time.sleep(float(sleepTime))
 
