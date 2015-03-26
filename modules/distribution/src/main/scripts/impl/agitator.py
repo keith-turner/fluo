@@ -21,6 +21,13 @@ import csv
 import random
 import time
 
+if len(sys.argv) != 3:
+  print "Usage : "+sys.argv[0]+" <num to kill> <sleep time>"
+  sys.exit(1)
+
+numToKill=sys.argv[1]
+sleepTime=sys.argv[2]
+
 while True:
   proc = Popen("fluo yarn csv", shell=True, bufsize=1, stdout=PIPE)
   csv_reader = csv.DictReader(proc.stdout)
@@ -32,10 +39,11 @@ while True:
       workers.append(row)
   proc.wait()
 
-  worker = random.choice(workers)
-  print "Killing "+worker['container_id']+" "+worker['host']
+  for i in range(0, numToKill):
+    worker = random.choice(workers)
+    print "Killing "+worker['container_id']+" "+worker['host']
+    call(['ssh',worker['host'],"pkill -9 -f "+worker['container_id']])
+    workers.remove(worker)
 
-  call(['ssh',worker['host'],"pkill -9 -f "+worker['container_id']]) 
-
-  time.sleep(120)
+  time.sleep(sleepTime)
 
