@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -15,6 +15,7 @@
 
 package org.apache.fluo.core.worker;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +25,7 @@ import org.apache.fluo.api.config.ObserverConfiguration;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.observer.Observer;
 import org.apache.fluo.core.impl.Environment;
+import org.apache.fluo.core.util.FluoClassloader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +33,7 @@ public class Observers implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(Observers.class);
 
+  private FluoClassloader classloader;
   private Environment env;
   Map<Column, List<Observer>> observers = new HashMap<>();
 
@@ -48,6 +51,12 @@ public class Observers implements AutoCloseable {
 
   public Observers(Environment env) {
     this.env = env;
+    //TODO constant
+    String classpath = env.getConfiguration().getProperty("org.apache.fluo.worker.classpath");
+    if(classpath != null) {
+      URL[] urls = FluoClassloader.parseConfig(classpath);
+      classloader = new FluoClassloader(urls);
+    }
   }
 
   public Observer getObserver(Column col) {
@@ -70,8 +79,13 @@ public class Observers implements AutoCloseable {
 
     if (observerConfig != null) {
       try {
-        observer =
-            Class.forName(observerConfig.getClassName()).asSubclass(Observer.class).newInstance();
+        if(classloader == null) {
+          observer =
+              Class.forName(observerConfig.getClassName()).asSubclass(Observer.class).newInstance();
+        } else {
+          observer = classloader.loadClass(observerConfig.getClassName()).asSubclass(Observer.class).newInstance();
+        }
+
         observer.init(new ObserverContext(env, observerConfig.getParameters()));
       } catch (RuntimeException e) {
         throw e;
