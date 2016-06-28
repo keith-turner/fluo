@@ -144,7 +144,7 @@ classpath)
   echo "$CLASSPATH"
   ;;
 exec)
-  export CLASSPATH="$APP_LIB_DIR/*:$CLASSPATH"
+  #export CLASSPATH="$APP_LIB_DIR/*:$CLASSPATH"
   java org.apache.fluo.cluster.command.FluoCommand $FLUO_HOME $HADOOP_PREFIX "$@"
   ;;
 *)

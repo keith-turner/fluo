@@ -41,7 +41,7 @@ public class FluoClassloader extends URLClassLoader {
       return c;
 
     if (name.startsWith("org.apache.fluo.api") || name.startsWith("java")
-        || name.startsWith("com.sun")) {
+        || name.startsWith("com.sun") || name.startsWith("org.apache.commons.configuration")) {
       return super.loadClass(name, resolve);
     } else {
       return findClass(name);
@@ -79,7 +79,7 @@ public class FluoClassloader extends URLClassLoader {
 
   public static ClassLoader getInstance(Configuration config) {
     // TODO constant
-    String classpath = (String) config.getProperty("org.apache.fluo.appClasspath");
+    String classpath = config.getString("org.apache.fluo.appClasspath");
     if (classpath != null && !classpath.trim().isEmpty()) {
       URL[] urls = FluoClassloader.parseClasspath(classpath);
       return new FluoClassloader(urls);
