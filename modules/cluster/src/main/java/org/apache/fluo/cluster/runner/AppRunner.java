@@ -47,6 +47,7 @@ import org.apache.fluo.core.impl.Environment;
 import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.AccumuloUtil;
 import org.apache.fluo.core.util.ByteUtil;
+import org.apache.fluo.core.util.FluoClassloader;
 import org.apache.fluo.core.util.Hex;
 import org.apache.fluo.core.util.SpanUtil;
 import org.slf4j.Logger;
@@ -318,7 +319,7 @@ public abstract class AppRunner {
     String className = args[0];
     Arrays.copyOfRange(args, 1, args.length);
 
-    Class<?> clazz = Class.forName(className);
+    Class<?> clazz = FluoClassloader.getInstance(fluoConfig).loadClass(className);
 
     // inject fluo configuration
     Guice.createInjector(new FluoConfigModule(clazz, fluoConfig));
