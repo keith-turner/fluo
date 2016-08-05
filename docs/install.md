@@ -2,7 +2,7 @@
 
 Instructions for installing Apache Fluo and starting a Fluo application in YARN on a cluster where
 Accumulo, Hadoop & Zookeeper are running.  If you need help setting up these dependencies, see the
-[related projects page][related] for external projects that can help.  
+[related projects page][related] for external projects that may help.  
 
 ## Requirements
 

@@ -12,9 +12,9 @@ of a large-scale computation, index, or analytic as new data is discovered. Chec
 ## Getting Started
 
 * Take the [Fluo Tour][tour] if you are completely new to Fluo. 
-* Read the [install instructions] to install Fluo and start a Fluo application in YARN on a cluster
-  where Accumulo, Hadoop & Zookeeper are running. If you need help setting up these dependencies, 
-  see the [related projects page][related] for external projects that can help.
+* Read the [install instructions][install] to install Fluo and start a Fluo application in YARN on a
+  cluster where Accumulo, Hadoop & Zookeeper are running. If you need help setting up these
+  dependencies, see the [related projects page][related] for external projects that may help.
 
 ## Applications
 
