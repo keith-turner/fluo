@@ -29,6 +29,7 @@ import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumn;
 
 public class TxStringUtil {
+
   private static Map<String, Map<Column, String>> transform(Map<Bytes, Map<Column, Bytes>> rcvs) {
     Map<String, Map<Column, String>> ret = new HashMap<>(rcvs.size());
 
@@ -56,8 +57,8 @@ public class TxStringUtil {
     return transform(snapshot.get(Collections2.transform(rows, s -> Bytes.of(s)), columns));
   }
 
-  public static Map<String, Map<Column, String>> gets(SnapshotBase snapshot,
-      Collection<RowColumn> rowColumns) {
-    return transform(snapshot.get(rowColumns));
+  public static Map<RowColumn, String> gets(SnapshotBase snapshot, Collection<RowColumn> rowColumns) {
+    Map<RowColumn, Bytes> bytesMap = snapshot.get(rowColumns);
+    return Maps.transformValues(bytesMap, b -> b.toString());
   }
 }

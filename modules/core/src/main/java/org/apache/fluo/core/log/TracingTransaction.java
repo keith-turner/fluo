@@ -89,6 +89,11 @@ public class TracingTransaction implements AsyncTransaction, Snapshot {
         + "=" + enc(e.getValue())));
   }
 
+  private String encRCM(Map<RowColumn, Bytes> ret) {
+    return Iterators.toString(Iterators.transform(ret.entrySet().iterator(),
+        e -> Hex.encNonAscii(e.getKey()) + "=" + enc(e.getValue())));
+  }
+
   public TracingTransaction(AsyncTransaction tx, Notification notification, Class<?> clazz) {
     this.tx = tx;
     this.txid = tx.getStartTimestamp();
@@ -139,10 +144,10 @@ public class TracingTransaction implements AsyncTransaction, Snapshot {
   }
 
   @Override
-  public Map<Bytes, Map<Column, Bytes>> get(Collection<RowColumn> rowColumns) {
-    Map<Bytes, Map<Column, Bytes>> ret = tx.get(rowColumns);
+  public Map<RowColumn, Bytes> get(Collection<RowColumn> rowColumns) {
+    Map<RowColumn, Bytes> ret = tx.get(rowColumns);
     if (log.isTraceEnabled()) {
-      log.trace("txid: {} get({}) -> {}", txid, encRC(rowColumns), encRC(ret));
+      log.trace("txid: {} get({}) -> {}", txid, encRC(rowColumns), encRCM(ret));
     }
     return ret;
   }
@@ -264,7 +269,7 @@ public class TracingTransaction implements AsyncTransaction, Snapshot {
   }
 
   @Override
-  public Map<String, Map<Column, String>> gets(Collection<RowColumn> rowColumns) {
+  public Map<RowColumn, String> gets(Collection<RowColumn> rowColumns) {
     return TxStringUtil.gets(this, rowColumns);
   }
 
