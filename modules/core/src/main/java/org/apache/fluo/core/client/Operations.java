@@ -18,21 +18,35 @@ package org.apache.fluo.core.client;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.Properties;
 import java.util.Set;
 
+import com.google.gson.Gson;
+import com.google.gson.stream.JsonWriter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.fluo.accumulo.util.ZookeeperPath;
 import org.apache.fluo.api.config.ObserverSpecification;
+import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.observer.Observer.NotificationType;
+import org.apache.fluo.api.observer.Observer.ObservedColumn;
 import org.apache.fluo.core.util.ColumnUtil;
 import org.apache.fluo.core.util.CuratorUtil;
 import org.apache.hadoop.io.WritableUtils;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Utility methods for initializing Zookeeper and Accumulo
@@ -107,5 +121,58 @@ public class Operations {
 
     byte[] serializedObservers = baos.toByteArray();
     return serializedObservers;
+  }
+
+  public static void updateObserversFactory(CuratorFramework curator, String obsFactoryClass,
+      Collection<ObservedColumn> columns) throws Exception {
+
+    // TODO does core depend on this? If not, do we want to add dep?
+    Gson gson = new Gson();
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    JsonWriter jw = new JsonWriter(new OutputStreamWriter(baos));
+    gson.toJson(new JsonObservers(obsFactoryClass, columns), JsonObservers.class, jw);
+    jw.close();
+    CuratorUtil.putData(curator, ZookeeperPath.CONFIG_FLUO_OBSERVERS2, baos.toByteArray(),
+        CuratorUtil.NodeExistsPolicy.OVERWRITE);
+
+  }
+
+  // TODO these class could be internal to methods for serializing and deserializing observer info
+  public static class JsonObservedColumn {
+    private byte[] fam;
+    private byte[] qual;
+    private byte[] vis;
+    private String notificationType;
+
+    JsonObservedColumn(ObservedColumn oc) {
+      this.fam = oc.getColumn().getFamily().toArray();
+      this.qual = oc.getColumn().getQualifier().toArray();
+      this.vis = oc.getColumn().getVisibility().toArray();
+      this.notificationType = oc.getType().name();
+    }
+
+    public ObservedColumn getObservedColumn() {
+      Column col = new Column(Bytes.of(fam), Bytes.of(qual), Bytes.of(vis));
+      return new ObservedColumn(col, NotificationType.valueOf(notificationType));
+    }
+  }
+
+  public static class JsonObservers {
+    String obsFactoryClass;
+    List<JsonObservedColumn> observedColumns;
+
+    JsonObservers(String obsFactoryClass, Collection<ObservedColumn> columns) {
+      this.obsFactoryClass = obsFactoryClass;
+      this.observedColumns = columns.stream().map(JsonObservedColumn::new).collect(toList());
+    }
+
+    public Collection<ObservedColumn> getObservedColumns() {
+      return observedColumns.stream().map(JsonObservedColumn::getObservedColumn).collect(toList());
+    }
+
+    @Override
+    public String toString() {
+      return obsFactoryClass + " " + getObservedColumns();
+    }
   }
 }

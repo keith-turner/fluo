@@ -61,11 +61,22 @@ public interface Observer {
     public NotificationType getType() {
       return notificationType;
     }
+
+    /**
+     * @since 1.1.0
+     */
+    @Override
+    public String toString() {
+      return col + " " + notificationType;
+    }
   }
 
   /**
    * @since 1.0.0
+   * 
+   * @deprecated since 1.1.0
    */
+  @Deprecated
   interface Context {
     /**
      * @return A configuration object with application configuration like that returned by
@@ -88,8 +99,11 @@ public interface Observer {
    * Implemented by user to initialize Observer.
    *
    * @param context Observer context
+   * 
+   * @deprecated since 1.1.0
    */
-  void init(Context context) throws Exception;
+  @Deprecated
+  default void init(Context context) throws Exception {}
 
   /**
    * Implemented by users to process notifications on a {@link ObservedColumn}. If a notification
@@ -107,8 +121,13 @@ public interface Observer {
    * then an exception will be thrown. It is safe to assume that {@link #init(Context)} will be
    * called before this method. If the return value of the method is derived from what is passed to
    * {@link #init(Context)}, then the derivation process should be deterministic.
+   * 
+   * @deprecated since 1.1.0
    */
-  ObservedColumn getObservedColumn();
+  @Deprecated
+  default ObservedColumn getObservedColumn() {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Implemented by user to close resources used by Observer

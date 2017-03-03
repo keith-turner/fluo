@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
 import org.apache.fluo.api.client.FluoClient;
+import org.apache.fluo.api.observer.ObserversFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +87,14 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /** The properties below get loaded into/from Zookeeper */
   // Observer
+  @Deprecated
   public static final String OBSERVER_PREFIX = FLUO_PREFIX + ".observer.";
+
+  /**
+   * @since 1.1.0
+   */
+  public static final String OBSERVERS_FACTORY = FLUO_PREFIX + ".observers.factory";
+  public static final String OBSERVERS_FACTORY_DEFAULT = "";
 
   // Transaction
   public static final String TRANSACTION_PREFIX = FLUO_PREFIX + ".tx";
@@ -281,6 +289,10 @@ public class FluoConfiguration extends SimpleConfiguration {
     return getPositiveInt(WORKER_NUM_THREADS_PROP, WORKER_NUM_THREADS_DEFAULT);
   }
 
+  /**
+   * @deprecated since 1.1.0
+   */
+  @Deprecated
   public List<ObserverSpecification> getObserverSpecifications() {
 
     List<ObserverSpecification> configList = new ArrayList<>();
@@ -344,6 +356,28 @@ public class FluoConfiguration extends SimpleConfiguration {
     return max + 1;
   }
 
+  /**
+   * @since 1.1.0
+   */
+  public void setObserversFactory(String className) {
+    setNonEmptyString(OBSERVERS_FACTORY, className);
+  }
+
+  /**
+   * @since 1.1.0
+   */
+  public void setObserversFactory(Class<? extends ObserversFactory> clazz) {
+    setObserversFactory(clazz.getName());
+  }
+
+  /**
+   * @since 1.1.0
+   */
+  public String getObserversFactory() {
+    return getString(OBSERVERS_FACTORY, OBSERVERS_FACTORY_DEFAULT);
+  }
+
+  @Deprecated
   private void addObserver(ObserverSpecification oconf, int next) {
     Map<String, String> params = oconf.getConfiguration().toMap();
     StringBuilder paramString = new StringBuilder();
@@ -359,7 +393,10 @@ public class FluoConfiguration extends SimpleConfiguration {
   /**
    * Adds an {@link ObserverSpecification} to the configuration using a unique integer prefix thats
    * not currently in use.
+   *
+   * @deprecated since 1.1.0
    */
+  @Deprecated
   public FluoConfiguration addObserver(ObserverSpecification oconf) {
     int next = getNextObserverId();
     addObserver(oconf, next);
@@ -368,7 +405,10 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /**
    * Adds multiple observers using unique integer prefixes for each.
+   *
+   * @deprecated since 1.1.0
    */
+  @Deprecated
   public FluoConfiguration addObservers(Iterable<ObserverSpecification> observers) {
     int next = getNextObserverId();
     for (ObserverSpecification oconf : observers) {
@@ -379,7 +419,10 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /**
    * Removes any configured observers.
+   *
+   * @deprecated since 1.1.0
    */
+  @Deprecated
   public FluoConfiguration clearObservers() {
     Iterator<String> iter1 = getKeys(OBSERVER_PREFIX.substring(0, OBSERVER_PREFIX.length() - 1));
     while (iter1.hasNext()) {
