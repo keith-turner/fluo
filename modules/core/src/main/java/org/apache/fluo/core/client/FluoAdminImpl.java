@@ -15,13 +15,12 @@
 
 package org.apache.fluo.core.client;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -40,19 +39,11 @@ import org.apache.fluo.accumulo.util.ZookeeperPath;
 import org.apache.fluo.accumulo.util.ZookeeperUtil;
 import org.apache.fluo.api.client.FluoAdmin;
 import org.apache.fluo.api.config.FluoConfiguration;
-import org.apache.fluo.api.config.ObserverSpecification;
-import org.apache.fluo.api.config.SimpleConfiguration;
-import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.exceptions.FluoException;
-import org.apache.fluo.api.observer.Observer;
-import org.apache.fluo.api.observer.Observer.NotificationType;
-import org.apache.fluo.api.observer.Observer.ObservedColumn;
-import org.apache.fluo.api.observer.ObserversFactory;
-import org.apache.fluo.core.observer.ObserverFactoryContextImpl;
+import org.apache.fluo.core.observer.ObserverUtil;
 import org.apache.fluo.core.util.AccumuloUtil;
 import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.CuratorUtil;
-import org.apache.fluo.core.worker.ObserverContext;
 import org.apache.hadoop.io.Text;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.NodeExistsException;
@@ -212,73 +203,6 @@ public class FluoAdminImpl implements FluoAdmin {
   @Override
   public void updateSharedConfig() {
 
-    logger.info("Setting up observers using app config: {}", config.getAppConfiguration());
-
-    List<ObserverSpecification> obsSpecs = config.getObserverSpecifications();
-    String obsFactoryClass = config.getObserversFactory();
-
-    // TODO move this check to FluoConfig ?
-    if (!obsFactoryClass.isEmpty() && !obsSpecs.isEmpty()) {
-      throw new IllegalStateException(
-          "Old and new observers configuration present.  Can only have one.");
-    }
-
-    Map<Column, ObserverSpecification> colObservers = null;
-    Map<Column, ObserverSpecification> weakObservers = null;
-    Collection<ObservedColumn> columns = null;
-
-    if (!obsSpecs.isEmpty()) {
-      colObservers = new HashMap<>();
-      weakObservers = new HashMap<>();
-      for (ObserverSpecification ospec : obsSpecs) {
-        Observer observer;
-        try {
-          observer = Class.forName(ospec.getClassName()).asSubclass(Observer.class).newInstance();
-        } catch (ClassNotFoundException e1) {
-          throw new FluoException("Observer class '" + ospec.getClassName() + "' was not "
-              + "found.  Check for class name misspellings or failure to include "
-              + "the observer jar.", e1);
-        } catch (InstantiationException | IllegalAccessException e2) {
-          throw new FluoException("Observer class '" + ospec.getClassName()
-              + "' could not be created.", e2);
-        }
-
-        SimpleConfiguration oc = ospec.getConfiguration();
-        logger.info("Setting up observer {} using params {}.", observer.getClass().getSimpleName(),
-            oc.toMap());
-        try {
-          observer.init(new ObserverContext(config.subset(FluoConfiguration.APP_PREFIX), oc));
-        } catch (Exception e) {
-          throw new FluoException("Observer '" + ospec.getClassName()
-              + "' could not be initialized", e);
-        }
-
-        ObservedColumn observedCol = observer.getObservedColumn();
-        if (observedCol.getType() == NotificationType.STRONG) {
-          colObservers.put(observedCol.getColumn(), ospec);
-        } else {
-          weakObservers.put(observedCol.getColumn(), ospec);
-        }
-      }
-    } else if (!obsFactoryClass.isEmpty()) {
-      ObserversFactory observerFactory;
-      try {
-        observerFactory =
-            Class.forName(obsFactoryClass).asSubclass(ObserversFactory.class).newInstance();
-      } catch (ClassNotFoundException e1) {
-        throw new FluoException("ObserverFactory class '" + obsFactoryClass + "' was not "
-            + "found.  Check for class name misspellings or failure to include "
-            + "the observer facory jar.", e1);
-      } catch (InstantiationException | IllegalAccessException e2) {
-        throw new FluoException("ObserverFactory class '" + obsFactoryClass
-            + "' could not be created.", e2);
-      }
-
-      columns =
-          observerFactory.getObservedColumns(new ObserverFactoryContextImpl(config
-              .getAppConfiguration()));
-    }
-
     Properties sharedProps = new Properties();
     Iterator<String> iter = config.getKeys();
     while (iter.hasNext()) {
@@ -290,14 +214,15 @@ public class FluoAdminImpl implements FluoAdmin {
       }
     }
 
-
     try {
       CuratorFramework curator = getAppCurator();
-      if (!obsSpecs.isEmpty())
-        Operations.updateObservers(curator, colObservers, weakObservers);
-      else if (!obsFactoryClass.isEmpty())
-        Operations.updateObserversFactory(curator, obsFactoryClass, columns);
-      Operations.updateSharedConfig(curator, sharedProps);
+      ObserverUtil.initialize(curator, config);
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      sharedProps.store(baos, "Shared java props");
+
+      CuratorUtil.putData(curator, ZookeeperPath.CONFIG_SHARED, baos.toByteArray(),
+          CuratorUtil.NodeExistsPolicy.OVERWRITE);
     } catch (Exception e) {
       throw new FluoException("Failed to update shared configuration in Zookeeper", e);
     }

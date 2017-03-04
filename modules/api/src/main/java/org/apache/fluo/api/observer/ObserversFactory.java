@@ -53,7 +53,7 @@ public interface ObserversFactory {
    * @since 1.1.0
    */
   interface ObserverConsumer {
-    public void accept(Column observedColumn, NotificationType ntfyType, Observer observer);
+    void accept(Column observedColumn, NotificationType ntfyType, Observer observer);
   }
 
   void createObservers(ObserverConsumer consumer, Context ctx);
@@ -66,7 +66,9 @@ public interface ObserversFactory {
       columnsSeen.add(oc);
       observedColumns.add(new ObservedColumn(oc, nt));
     };
+
     createObservers(obsConsumer, ctx);
+
     return observedColumns;
   }
 }

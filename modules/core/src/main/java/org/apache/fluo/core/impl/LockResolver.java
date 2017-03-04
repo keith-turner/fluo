@@ -36,11 +36,14 @@ import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.values.DelLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
 import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.observer.Observer.NotificationType;
 import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.ColumnUtil;
 import org.apache.fluo.core.util.ConditionalFlutation;
 import org.apache.fluo.core.util.FluoCondition;
 import org.apache.fluo.core.util.SpanUtil;
+
+import static org.apache.fluo.api.observer.Observer.NotificationType.STRONG;
 
 /**
  * This is utility code for either rolling forward or back failed transactions. A transaction is
@@ -242,7 +245,7 @@ public class LockResolver {
 
       LockValue lv = new LockValue(entry.getValue().get());
       ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(), lockTs,
-          commitTs, env.getObservers().keySet(), mut);
+          commitTs, env.getConfiguredObservers().getObservedColumns(STRONG), mut);
     }
 
   }

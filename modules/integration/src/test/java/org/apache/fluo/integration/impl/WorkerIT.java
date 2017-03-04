@@ -30,8 +30,9 @@ import org.apache.fluo.api.data.Span;
 import org.apache.fluo.api.observer.Observer;
 import org.apache.fluo.core.impl.Environment;
 import org.apache.fluo.core.impl.TransactionImpl.CommitData;
+import org.apache.fluo.core.observer.ObserverProvider;
+import org.apache.fluo.core.observer.ObserverUtil;
 import org.apache.fluo.core.worker.NotificationFinder;
-import org.apache.fluo.core.worker.Observers;
 import org.apache.fluo.core.worker.finder.hash.HashNotificationFinder;
 import org.apache.fluo.integration.ITBaseMini;
 import org.apache.fluo.integration.TestTransaction;
@@ -152,8 +153,9 @@ public class WorkerIT extends ITBaseMini {
   public void testDiffObserverConfig() throws Exception {
     observedColumn = new Column("attr2", "lastupdate");
     try {
-      try (Environment env = new Environment(config); Observers observers = new Observers(env)) {
-        observers.getObserver(LAST_UPDATE);
+      try (Environment env = new Environment(config);
+          ObserverProvider op = env.getConfiguredObservers().getProvider(env)) {
+        op.getObserver(LAST_UPDATE);
       }
 
       Assert.fail();

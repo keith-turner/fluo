@@ -15,35 +15,14 @@
 
 package org.apache.fluo.core.observer;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import com.google.common.base.Preconditions;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.observer.Observer;
-import org.apache.fluo.api.observer.Observer.NotificationType;
-import org.apache.fluo.api.observer.ObserversFactory.ObserverConsumer;
 
-public class ObserverConsumerImpl implements ObserverConsumer {
+public interface ObserverProvider extends AutoCloseable {
+  Observer getObserver(Column col);
 
-  public static class ObserverValue {
-    public final Observer observer;
-    public final NotificationType ntfyType;
-
-    public ObserverValue(Observer observer, NotificationType ntfyType) {
-      this.observer = observer;
-      this.ntfyType = ntfyType;
-    }
-  }
-
-  private Map<Column, ObserverValue> observers = new HashMap<>();
+  void returnObserver(Observer o);
 
   @Override
-  public void accept(Column observedColumn, NotificationType ntfyType, Observer observer) {
-    Preconditions.checkArgument(!observers.containsKey(observedColumn),
-        "Duplicate observed column : %s", observedColumn);
-    observers.put(observedColumn, new ObserverValue(observer, ntfyType));
-  }
-
-
+  void close();
 }

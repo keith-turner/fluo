@@ -131,6 +131,9 @@ public interface Observer {
 
   /**
    * Implemented by user to close resources used by Observer
+   * 
+   * @deprecated since 1.1.0
    */
-  void close();
+  @Deprecated
+  default void close() {}
 }

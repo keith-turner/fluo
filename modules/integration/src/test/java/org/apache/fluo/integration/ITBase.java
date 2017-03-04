@@ -84,6 +84,22 @@ public class ITBase {
     return Collections.emptyList();
   }
 
+  protected String getObserversFactoryClass() {
+    return "";
+  }
+
+  protected void setupObservers(FluoConfiguration fc) {
+    List<ObserverSpecification> obs = getObservers();
+    if (obs.isEmpty()) {
+      String ofc = getObserversFactoryClass();
+      if (!ofc.isEmpty()) {
+        fc.setObserversFactory(ofc);
+      }
+    } else {
+      fc.addObservers(obs);
+    }
+  }
+
   public String getCurTableName() {
     return TABLE_BASE + tableCounter.get();
   }
