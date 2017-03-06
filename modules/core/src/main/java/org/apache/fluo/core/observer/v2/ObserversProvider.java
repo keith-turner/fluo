@@ -15,6 +15,7 @@
 
 package org.apache.fluo.core.observer.v2;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -27,10 +28,15 @@ import org.apache.fluo.api.observer.Observer;
 import org.apache.fluo.api.observer.Observer.NotificationType;
 import org.apache.fluo.api.observer.ObserversFactory;
 import org.apache.fluo.api.observer.ObserversFactory.ObserverConsumer;
+import org.apache.fluo.api.observer.StringObserver;
 import org.apache.fluo.core.impl.Environment;
 import org.apache.fluo.core.observer.ObserverProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class ObserversProvider implements ObserverProvider {
+
+  private static final Logger log = LoggerFactory.getLogger(ObserversProvider.class);
 
   Map<Column, Observer> observers;
 
@@ -42,8 +48,22 @@ class ObserversProvider implements ObserverProvider {
 
     ObserverFactoryContextImpl ctx = new ObserverFactoryContextImpl(env);
 
-    ObserverConsumer consumer = (col, nt, obs) -> {
-      // TODO maybe warn if has close method
+    ObserverConsumer consumer = new ObserverConsumer() {
+
+      @Override
+      public void accept(Column col, NotificationType nt, Observer obs) {
+        try {
+          Method closeMethod = obs.getClass().getMethod("close");
+          if (!closeMethod.getDeclaringClass().equals(Observer.class)) {
+            log.warn(
+                "Observer {} implements close().  Close is not called on Observers created using ObserversFactory."
+                    + " Close is only called on Observers configured the old way.", obs.getClass()
+                    .getName());
+          }
+        } catch (NoSuchMethodException | SecurityException e) {
+          throw new RuntimeException("Failed to check were close() is implemented", e);
+        }
+
         if (nt == NotificationType.STRONG && !strongColumns.contains(col)) {
           throw new IllegalArgumentException("Column " + col
               + " not previously configured for strong notifications");
@@ -55,13 +75,18 @@ class ObserversProvider implements ObserverProvider {
         }
 
         observers.put(col, obs);
-      };
+      }
+
+      @Override
+      public void accepts(Column col, NotificationType nt, StringObserver obs) {
+        accept(col, nt, obs);
+      }
+    };
+
     obsFact.createObservers(consumer, ctx);
 
-    // the following checks ensure the observers factory provides observers for all previously
+    // the following check ensures the observers factory provides observers for all previously
     // configured columns
-
-    // TODO this may be inefficient
     SetView<Column> diff =
         Sets.difference(observers.keySet(), Sets.union(strongColumns, weakColumns));
     if (diff.size() > 0) {
@@ -80,5 +105,4 @@ class ObserversProvider implements ObserverProvider {
 
   @Override
   public void close() {}
-
 }

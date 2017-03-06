@@ -42,8 +42,8 @@ public class AppConfigIT extends ITBaseMini {
   }
 
   @Override
-  protected String getObserversFactoryClass() {
-    return TestObserversFactory.class.getName();
+  protected Class<? extends ObserversFactory> getObserversFactoryClass() {
+    return TestObserversFactory.class;
   }
 
   @Test
@@ -99,8 +99,8 @@ public class AppConfigIT extends ITBaseMini {
     public void createObservers(ObserverConsumer consumer, Context ctx) {
       int limit = ctx.getAppConfiguration().getInt("myapp.sizeLimit");
 
-      consumer.accept(DF_COL, STRONG, (tx, row, col) -> {
-        int d = Integer.parseInt(tx.gets(row.toString(), col));
+      consumer.accepts(DF_COL, STRONG, (tx, row, col) -> {
+        int d = Integer.parseInt(tx.gets(row, col));
         if (2 * d < limit) {
           tx.set(row.toString(), DB_COL, Integer.toString(2 * d));
         }

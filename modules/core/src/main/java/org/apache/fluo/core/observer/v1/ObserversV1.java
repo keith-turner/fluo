@@ -212,9 +212,9 @@ public class ObserversV1 implements Observers {
             return observers.keySet();
           case WEAK:
             return weakObservers.keySet();
+          default:
+            throw new IllegalArgumentException("Unknown notification type " + nt);
         }
-
-        throw new IllegalArgumentException("Unknown notification type " + nt);
       }
     };
   }
@@ -224,6 +224,7 @@ public class ObserversV1 implements Observers {
     try {
       curator.delete().forPath(ZookeeperPath.CONFIG_FLUO_OBSERVERS);
     } catch (NoNodeException nne) {
+      // nothing to delete
     }
   }
 }

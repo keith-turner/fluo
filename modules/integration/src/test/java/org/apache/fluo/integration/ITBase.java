@@ -32,6 +32,7 @@ import org.apache.fluo.api.client.Snapshot;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.api.config.ObserverSpecification;
 import org.apache.fluo.api.data.RowColumnValue;
+import org.apache.fluo.api.observer.ObserversFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -84,15 +85,15 @@ public class ITBase {
     return Collections.emptyList();
   }
 
-  protected String getObserversFactoryClass() {
-    return "";
+  protected Class<? extends ObserversFactory> getObserversFactoryClass() {
+    return null;
   }
 
   protected void setupObservers(FluoConfiguration fc) {
     List<ObserverSpecification> obs = getObservers();
     if (obs.isEmpty()) {
-      String ofc = getObserversFactoryClass();
-      if (!ofc.isEmpty()) {
+      Class<? extends ObserversFactory> ofc = getObserversFactoryClass();
+      if (ofc != null) {
         fc.setObserversFactory(ofc);
       }
     } else {

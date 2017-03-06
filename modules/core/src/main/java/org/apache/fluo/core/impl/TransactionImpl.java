@@ -63,7 +63,6 @@ import org.apache.fluo.api.data.Span;
 import org.apache.fluo.api.exceptions.AlreadySetException;
 import org.apache.fluo.api.exceptions.CommitException;
 import org.apache.fluo.api.exceptions.FluoException;
-import org.apache.fluo.api.observer.Observer.NotificationType;
 import org.apache.fluo.core.async.AsyncCommitObserver;
 import org.apache.fluo.core.async.AsyncConditionalWriter;
 import org.apache.fluo.core.async.AsyncTransaction;

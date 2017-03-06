@@ -47,8 +47,6 @@ public class ObserversV2 implements Observers {
 
   @Override
   public void update(CuratorFramework curator, FluoConfiguration config) throws Exception {
-    // TODO Auto-generated method stub
-
     String obsFactoryClass = config.getObserversFactory();
 
     ObserversFactory observerFactory = newObserversFactory(obsFactoryClass);
@@ -73,7 +71,7 @@ public class ObserversV2 implements Observers {
     } catch (ClassNotFoundException e1) {
       throw new FluoException("ObserverFactory class '" + obsFactoryClass + "' was not "
           + "found.  Check for class name misspellings or failure to include "
-          + "the observer facory jar.", e1);
+          + "the observer factory jar.", e1);
     } catch (InstantiationException | IllegalAccessException e2) {
       throw new FluoException("ObserverFactory class '" + obsFactoryClass
           + "' could not be created.", e2);
@@ -87,7 +85,6 @@ public class ObserversV2 implements Observers {
     try {
       data = curator.getData().forPath(CONFIG_FLUO_OBSERVERS2);
     } catch (NoNodeException nne) {
-      nne.printStackTrace(); // TODO remove
       return null;
     }
     String json = new String(data, UTF_8);
@@ -123,9 +120,9 @@ public class ObserversV2 implements Observers {
             return strongColumns;
           case WEAK:
             return weakColumns;
+          default:
+            throw new IllegalArgumentException("Unknown notification type " + nt);
         }
-
-        throw new IllegalArgumentException("Unknown notification type " + nt);
       }
     };
   }
@@ -135,6 +132,7 @@ public class ObserversV2 implements Observers {
     try {
       curator.delete().forPath(CONFIG_FLUO_OBSERVERS2);
     } catch (NoNodeException nne) {
+      // nothing to delete
     }
   }
 

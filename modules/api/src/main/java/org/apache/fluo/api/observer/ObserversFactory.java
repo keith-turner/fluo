@@ -54,6 +54,8 @@ public interface ObserversFactory {
    */
   interface ObserverConsumer {
     void accept(Column observedColumn, NotificationType ntfyType, Observer observer);
+
+    void accepts(Column observedColumn, NotificationType ntfyType, StringObserver observer);
   }
 
   void createObservers(ObserverConsumer consumer, Context ctx);
@@ -61,10 +63,24 @@ public interface ObserversFactory {
   default Collection<ObservedColumn> getObservedColumns(Context ctx) {
     HashSet<Column> columnsSeen = new HashSet<>();
     List<ObservedColumn> observedColumns = new ArrayList<>();
-    ObserverConsumer obsConsumer = (oc, nt, obs) -> {
-      Preconditions.checkArgument(!columnsSeen.contains(oc), "Duplicate observed column : %s", oc);
-      columnsSeen.add(oc);
-      observedColumns.add(new ObservedColumn(oc, nt));
+
+    ObserverConsumer obsConsumer = new ObserverConsumer() {
+
+      @Override
+      public void accepts(Column oc, NotificationType nt, StringObserver obs) {
+        Preconditions
+            .checkArgument(!columnsSeen.contains(oc), "Duplicate observed column : %s", oc);
+        columnsSeen.add(oc);
+        observedColumns.add(new ObservedColumn(oc, nt));
+      }
+
+      @Override
+      public void accept(Column oc, NotificationType nt, Observer obs) {
+        Preconditions
+            .checkArgument(!columnsSeen.contains(oc), "Duplicate observed column : %s", oc);
+        columnsSeen.add(oc);
+        observedColumns.add(new ObservedColumn(oc, nt));
+      }
     };
 
     createObservers(obsConsumer, ctx);

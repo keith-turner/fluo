@@ -17,7 +17,6 @@ package org.apache.fluo.core.observer;
 
 import java.util.Set;
 
-import org.apache.fluo.accumulo.util.ZookeeperPath;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.observer.Observer;
 import org.apache.fluo.core.impl.Environment;
