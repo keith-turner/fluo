@@ -94,12 +94,12 @@ public class FluoConfiguration extends SimpleConfiguration {
    * @since 1.1.0
    */
   public static final String OBSERVERS_FACTORY = FLUO_PREFIX + ".observers.factory";
-  
+
   /**
    * @since 1.1.0
    */
   public static final String OBSERVERS_FACTORY_DEFAULT = "";
-  
+
   // Transaction
   public static final String TRANSACTION_PREFIX = FLUO_PREFIX + ".tx";
   public static final String TRANSACTION_ROLLBACK_TIME_PROP = TRANSACTION_PREFIX + ".rollback.time";

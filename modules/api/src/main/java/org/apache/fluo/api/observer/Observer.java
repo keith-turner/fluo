@@ -45,6 +45,8 @@ public interface Observer {
    *
    * @since 1.0.0
    */
+  // TODO deprecating this will make it more apparent that getOBsCol is deprecated... in eclipse
+  // extending a deprecating method is not complained about
   class ObservedColumn {
     private final Column col;
     private final NotificationType notificationType;

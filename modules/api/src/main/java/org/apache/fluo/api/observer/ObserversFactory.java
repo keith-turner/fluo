@@ -58,7 +58,7 @@ public interface ObserversFactory {
     void accepts(Column observedColumn, NotificationType ntfyType, StringObserver observer);
   }
 
-  void createObservers(ObserverConsumer consumer, Context ctx);
+  void createObservers(ObserverConsumer obsConsumer, Context ctx);
 
   default Collection<ObservedColumn> getObservedColumns(Context ctx) {
     HashSet<Column> columnsSeen = new HashSet<>();
