@@ -26,6 +26,10 @@ import org.apache.fluo.api.metrics.MetricsReporter;
 /**
  * Implemented by users to a watch a {@link Column} and be notified of changes to the Column via the
  * {@link #process(TransactionBase, Bytes, Column)} method.
+ * 
+ * <p>
+ * In Fluo version 1.1.0 this was converted to a functional interface. This change along with the
+ * introduction of {@link ObserversFactory} allows Observers to be written as lambdas.
  *
  * @since 1.0.0
  */
@@ -42,7 +46,7 @@ public interface Observer {
    * A {@link Column} and {@link NotificationType} pair
    *
    * @since 1.0.0
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. The method that used this class was deprecated.
    */
   @Deprecated
   class ObservedColumn {
@@ -74,7 +78,7 @@ public interface Observer {
   /**
    * @since 1.0.0
    *
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. The method that used this interface was deprecated.
    */
   @Deprecated
   interface Context {

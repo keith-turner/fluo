@@ -41,12 +41,14 @@ import org.apache.zookeeper.KeeperException.NoNodeException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.fluo.accumulo.util.ZookeeperPath.CONFIG_FLUO_OBSERVERS2;
 
+/*
+ * Support for observers configured the new way.
+ */
 public class ObserversV2 implements Observers {
 
   @Override
   public boolean handles(FluoConfiguration config) {
-    String obsFactoryClass = config.getObserversFactory();
-    return !obsFactoryClass.isEmpty();
+    return !config.getObserversFactory().isEmpty();
   }
 
   @Override
@@ -121,7 +123,7 @@ public class ObserversV2 implements Observers {
 
       @Override
       public ObserverProvider getProvider(Environment env) {
-        return new ObserversProvider(env, jco, strongColumns, weakColumns);
+        return new ObserversProviderV2(env, jco, strongColumns, weakColumns);
       }
 
       @Override

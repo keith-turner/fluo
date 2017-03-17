@@ -34,13 +34,13 @@ import org.apache.fluo.core.observer.ObserverProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class ObserversProvider implements ObserverProvider {
+class ObserversProviderV2 implements ObserverProvider {
 
-  private static final Logger log = LoggerFactory.getLogger(ObserversProvider.class);
+  private static final Logger log = LoggerFactory.getLogger(ObserversProviderV2.class);
 
   Map<Column, Observer> observers;
 
-  public ObserversProvider(Environment env, JsonObservers jco, Set<Column> strongColumns,
+  public ObserversProviderV2(Environment env, JsonObservers jco, Set<Column> strongColumns,
       Set<Column> weakColumns) {
     observers = new HashMap<>();
 
@@ -61,7 +61,7 @@ class ObserversProvider implements ObserverProvider {
                     .getName());
           }
         } catch (NoSuchMethodException | SecurityException e) {
-          throw new RuntimeException("Failed to check were close() is implemented", e);
+          throw new RuntimeException("Failed to check if close() is implemented", e);
         }
 
         if (nt == NotificationType.STRONG && !strongColumns.contains(col)) {
@@ -72,6 +72,10 @@ class ObserversProvider implements ObserverProvider {
         if (nt == NotificationType.WEAK && !weakColumns.contains(col)) {
           throw new IllegalArgumentException("Column " + col
               + " not previously configured for weak notifications");
+        }
+
+        if (observers.containsKey(col)) {
+          throw new IllegalArgumentException("Duplicate observed column " + col);
         }
 
         observers.put(col, obs);

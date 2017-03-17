@@ -20,12 +20,14 @@ import java.util.function.BiConsumer;
 import org.apache.fluo.api.client.FluoClient;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.api.config.SimpleConfiguration;
+import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.metrics.MetricsReporter;
 import org.apache.fluo.api.observer.Observer.NotificationType;
 
 /**
- * Fluo Workers use this class to create Observers to process notifications.
+ * Fluo Workers use this class to create {@link Observer}s to process notifications. Implementations
+ * of this class should emit zero or more {@link Observer}s.
  *
  * <p>
  * When Fluo is initialized {@link #getObservedColumns(Context, BiConsumer)} is called. The columns
@@ -56,13 +58,28 @@ public interface ObserversFactory {
   }
 
   /**
-   * Allows {@link Observer}s to be related to the columns that trigger them.
+   * Observers are emitted to the worker using this interface. This interface also allows
+   * {@link Observer}s to be related to the columns that trigger them.
    *
    * @since 1.1.0
    */
   interface ObserverConsumer {
     void accept(Column observedColumn, NotificationType ntfyType, Observer observer);
 
+    /**
+     * This method was created to allow Observers written as lambda to be passed {@link String}
+     * instead of {@link Bytes}.
+     * 
+     * <pre>
+     * <code>
+     *   void createObservers(ObserverConsumer obsConsumer, Context ctx) {
+     *     obsConsumer.accepts(someColumn, WEAK, (tx,row,col) -> {
+     *      //row is of type String
+     *     };
+     *   }
+     * </code>
+     * </pre>
+     */
     void accepts(Column observedColumn, NotificationType ntfyType, StringObserver observer);
   }
 

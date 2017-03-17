@@ -26,7 +26,8 @@ import org.apache.fluo.api.observer.Observer;
  * {@link FluoConfiguration#addObserver(ObserverSpecification)}.
  *
  * @since 1.0.0
- * @deprecated since 1.1.0
+ * @deprecated since 1.1.0. The methods that used this class in {@link FluoConfiguration} were
+ *             deprecated.
  */
 @Deprecated
 public class ObserverSpecification {

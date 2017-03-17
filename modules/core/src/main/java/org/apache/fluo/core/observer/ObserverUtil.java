@@ -63,17 +63,17 @@ public class ObserverUtil {
     Observers ov1 = new ObserversV1();
     Observers ov2 = new ObserversV2();
 
+    // try to load observers using old and new config
     ConfiguredObservers co = ov1.load(curator);
     if (co == null) {
       co = ov2.load(curator);
     }
 
     if (co == null) {
+      // no observers configured, so return an empty provider
       co = new ConfiguredObservers() {
-
         @Override
         public ObserverProvider getProvider(Environment env) {
-          // TODO Auto-generated method stub
           return new ObserverProvider() {
 
             @Override

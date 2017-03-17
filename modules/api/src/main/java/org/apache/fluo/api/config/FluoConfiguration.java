@@ -367,8 +367,8 @@ public class FluoConfiguration extends SimpleConfiguration {
    *
    * @since 1.1.0
    *
-   * @param className must be non-null and non-empty
-   * @see ObserversFactory
+   * @param className Name of a class that implements {@link ObserversFactory}. Must be non-null and
+   *        non-empty.
    */
   public void setObserversFactory(String className) {
     setNonEmptyString(OBSERVERS_FACTORY, className);

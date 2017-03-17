@@ -48,6 +48,9 @@ import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/*
+ * Support for observers configured the old way.
+ */
 @SuppressWarnings("deprecation")
 public class ObserversV1 implements Observers {
 
@@ -202,7 +205,7 @@ public class ObserversV1 implements Observers {
 
       @Override
       public ObserverProvider getProvider(Environment env) {
-        return new ObserversProvider(env, observers, weakObservers);
+        return new ObserversProviderV1(env, observers, weakObservers);
       }
 
       @Override

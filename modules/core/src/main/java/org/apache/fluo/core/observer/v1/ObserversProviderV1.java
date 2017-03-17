@@ -29,9 +29,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("deprecation")
-class ObserversProvider implements ObserverProvider {
+class ObserversProviderV1 implements ObserverProvider {
 
-  private static final Logger log = LoggerFactory.getLogger(ObserversProvider.class);
+  private static final Logger log = LoggerFactory.getLogger(ObserversProviderV1.class);
 
   private Environment env;
   Map<Column, List<Observer>> observers = new HashMap<>();
@@ -50,7 +50,7 @@ class ObserversProvider implements ObserverProvider {
     return observerList;
   }
 
-  public ObserversProvider(Environment env, Map<Column, ObserverSpecification> strongObservers,
+  public ObserversProviderV1(Environment env, Map<Column, ObserverSpecification> strongObservers,
       Map<Column, ObserverSpecification> weakObservers) {
     this.env = env;
     this.strongObservers = strongObservers;

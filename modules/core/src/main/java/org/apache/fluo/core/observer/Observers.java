@@ -18,6 +18,9 @@ package org.apache.fluo.core.observer;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.fluo.api.config.FluoConfiguration;
 
+/*
+ * This interface enables abstracting the new and old way on configuring observers.
+ */
 public interface Observers {
   boolean handles(FluoConfiguration config);
 
