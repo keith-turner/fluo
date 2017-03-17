@@ -26,7 +26,9 @@ import org.apache.fluo.api.client.TransactionBase;
  * user.
  *
  * @since 1.0.0
- * @deprecated since 1.1.0
+ * @deprecated since 1.1.0. This class was deprecated for two reasons. Mainly the methods its
+ *             overrides in Observer were deprecated. Second, its no longer needed with default
+ *             methods on java 8.
  */
 @Deprecated
 public abstract class AbstractObserver implements Observer {

@@ -295,7 +295,8 @@ public class FluoConfiguration extends SimpleConfiguration {
   }
 
   /**
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Replaced by {@link #setObserversFactory(String)} and
+   *             {@link #getObserversFactory()}
    */
   @Deprecated
   public List<ObserverSpecification> getObserverSpecifications() {
@@ -362,8 +363,11 @@ public class FluoConfiguration extends SimpleConfiguration {
   }
 
   /**
+   * Configure the observer factory that Fluo workers will use.
+   * 
    * @since 1.1.0
    * 
+   * @param className must be non-null and non-empty
    * @see ObserversFactory
    */
   public void setObserversFactory(String className) {
@@ -371,6 +375,8 @@ public class FluoConfiguration extends SimpleConfiguration {
   }
 
   /**
+   * Calls {@link #setObserversFactory(String)} with the class name.
+   * 
    * @since 1.1.0
    */
   public void setObserversFactory(Class<? extends ObserversFactory> clazz) {
@@ -378,6 +384,8 @@ public class FluoConfiguration extends SimpleConfiguration {
   }
 
   /**
+   * @return The configured {@link ObserversFactory} class name. If one was not configured, returns
+   *         {@value #OBSERVERS_FACTORY_DEFAULT}
    * @since 1.1.0
    */
   public String getObserversFactory() {
@@ -401,7 +409,8 @@ public class FluoConfiguration extends SimpleConfiguration {
    * Adds an {@link ObserverSpecification} to the configuration using a unique integer prefix thats
    * not currently in use.
    *
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Replaced by {@link #setObserversFactory(String)} and
+   *             {@link #getObserversFactory()}
    */
   @Deprecated
   public FluoConfiguration addObserver(ObserverSpecification oconf) {
@@ -413,7 +422,8 @@ public class FluoConfiguration extends SimpleConfiguration {
   /**
    * Adds multiple observers using unique integer prefixes for each.
    *
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Replaced by {@link #setObserversFactory(String)} and
+   *             {@link #getObserversFactory()}
    */
   @Deprecated
   public FluoConfiguration addObservers(Iterable<ObserverSpecification> observers) {
@@ -427,7 +437,8 @@ public class FluoConfiguration extends SimpleConfiguration {
   /**
    * Removes any configured observers.
    *
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Replaced by {@link #setObserversFactory(String)} and
+   *             {@link #getObserversFactory()}
    */
   @Deprecated
   public FluoConfiguration clearObservers() {
