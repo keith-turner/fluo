@@ -15,18 +15,13 @@
 
 package org.apache.fluo.api.observer;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.function.BiConsumer;
 
-import com.google.common.base.Preconditions;
 import org.apache.fluo.api.client.FluoClient;
 import org.apache.fluo.api.config.SimpleConfiguration;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.metrics.MetricsReporter;
 import org.apache.fluo.api.observer.Observer.NotificationType;
-import org.apache.fluo.api.observer.Observer.ObservedColumn;
 
 /**
  * @since 1.1.0
@@ -60,31 +55,19 @@ public interface ObserversFactory {
 
   void createObservers(ObserverConsumer obsConsumer, Context ctx);
 
-  default Collection<ObservedColumn> getObservedColumns(Context ctx) {
-    HashSet<Column> columnsSeen = new HashSet<>();
-    List<ObservedColumn> observedColumns = new ArrayList<>();
-
+  default void getObservedColumns(Context ctx, BiConsumer<Column, NotificationType> obsColConsumer) {
     ObserverConsumer obsConsumer = new ObserverConsumer() {
-
       @Override
       public void accepts(Column oc, NotificationType nt, StringObserver obs) {
-        Preconditions
-            .checkArgument(!columnsSeen.contains(oc), "Duplicate observed column : %s", oc);
-        columnsSeen.add(oc);
-        observedColumns.add(new ObservedColumn(oc, nt));
+        obsColConsumer.accept(oc, nt);
       }
 
       @Override
       public void accept(Column oc, NotificationType nt, Observer obs) {
-        Preconditions
-            .checkArgument(!columnsSeen.contains(oc), "Duplicate observed column : %s", oc);
-        columnsSeen.add(oc);
-        observedColumns.add(new ObservedColumn(oc, nt));
+        obsColConsumer.accept(oc, nt);
       }
     };
 
     createObservers(obsConsumer, ctx);
-
-    return observedColumns;
   }
 }

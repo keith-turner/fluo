@@ -18,7 +18,6 @@ package org.apache.fluo.core.observer.v2;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.observer.Observer.NotificationType;
-import org.apache.fluo.api.observer.Observer.ObservedColumn;
 
 // this class created for json serialization
 class JsonObservedColumn {
@@ -27,15 +26,18 @@ class JsonObservedColumn {
   private byte[] vis;
   private String notificationType;
 
-  JsonObservedColumn(ObservedColumn oc) {
-    this.fam = oc.getColumn().getFamily().toArray();
-    this.qual = oc.getColumn().getQualifier().toArray();
-    this.vis = oc.getColumn().getVisibility().toArray();
-    this.notificationType = oc.getType().name();
+  JsonObservedColumn(Column col, NotificationType nt) {
+    this.fam = col.getFamily().toArray();
+    this.qual = col.getQualifier().toArray();
+    this.vis = col.getVisibility().toArray();
+    this.notificationType = nt.name();
   }
 
-  public ObservedColumn getObservedColumn() {
-    Column col = new Column(Bytes.of(fam), Bytes.of(qual), Bytes.of(vis));
-    return new ObservedColumn(col, NotificationType.valueOf(notificationType));
+  public Column getColumn() {
+    return new Column(Bytes.of(fam), Bytes.of(qual), Bytes.of(vis));
+  }
+
+  public NotificationType getNotificationType() {
+    return NotificationType.valueOf(notificationType);
   }
 }

@@ -15,29 +15,35 @@
 
 package org.apache.fluo.core.observer.v2;
 
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import org.apache.fluo.api.observer.Observer.ObservedColumn;
+import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.observer.Observer.NotificationType;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 // this class created for json serialization
 class JsonObservers {
   String obsFactoryClass;
   List<JsonObservedColumn> observedColumns;
 
-  JsonObservers(String obsFactoryClass, Collection<ObservedColumn> columns) {
+  JsonObservers(String obsFactoryClass, Map<Column, NotificationType> columns) {
     this.obsFactoryClass = obsFactoryClass;
-    this.observedColumns = columns.stream().map(JsonObservedColumn::new).collect(toList());
+    this.observedColumns =
+        columns.entrySet().stream()
+            .map(entry -> new JsonObservedColumn(entry.getKey(), entry.getValue()))
+            .collect(toList());
   }
 
   public String getObserversFactoryClass() {
     return obsFactoryClass;
   }
 
-  public Collection<ObservedColumn> getObservedColumns() {
-    return observedColumns.stream().map(JsonObservedColumn::getObservedColumn).collect(toList());
+  public Map<Column, NotificationType> getObservedColumns() {
+    return observedColumns.stream().collect(
+        toMap(JsonObservedColumn::getColumn, JsonObservedColumn::getNotificationType));
   }
 
   @Override

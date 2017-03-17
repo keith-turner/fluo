@@ -22,7 +22,6 @@ import org.apache.fluo.api.client.TransactionBase;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.api.data.Span;
-import org.apache.fluo.api.observer.Observer.NotificationType;
 import org.apache.fluo.api.observer.ObserversFactory;
 import org.apache.fluo.api.observer.StringObserver;
 import org.apache.fluo.core.impl.Environment;
@@ -37,7 +36,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.fluo.api.observer.Observer.NotificationType.STRONG;
-import static org.apache.fluo.api.observer.Observer.NotificationType.WEAK;
 
 /**
  * A simple test that added links between nodes in a graph. There is an observer that updates an

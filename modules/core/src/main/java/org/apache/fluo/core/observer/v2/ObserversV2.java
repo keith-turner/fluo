@@ -15,17 +15,21 @@
 
 package org.apache.fluo.core.observer.v2;
 
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
+import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.exceptions.FluoException;
 import org.apache.fluo.api.observer.Observer.NotificationType;
-import org.apache.fluo.api.observer.Observer.ObservedColumn;
 import org.apache.fluo.api.observer.ObserversFactory;
 import org.apache.fluo.core.impl.Environment;
 import org.apache.fluo.core.observer.ConfiguredObservers;
@@ -51,13 +55,20 @@ public class ObserversV2 implements Observers {
 
     ObserversFactory observerFactory = newObserversFactory(obsFactoryClass);
 
-    Collection<ObservedColumn> columns =
-        observerFactory.getObservedColumns(new ObserverFactoryContextImpl(config
-            .getAppConfiguration()));
+    Map<Column, NotificationType> obsCols = new HashMap<>();
+    BiConsumer<Column, NotificationType> obsColConsumer = (col, nt) -> {
+      Objects.requireNonNull(col, "Observed column must be non-null");
+      Objects.requireNonNull(nt, "Notification type must be non-null");
+      Preconditions.checkArgument(!obsCols.containsKey(col), "Duplicate observed column %s", col);
+      obsCols.put(col, nt);
+    };
+
+    observerFactory.getObservedColumns(
+        new ObserverFactoryContextImpl(config.getAppConfiguration()), obsColConsumer);
 
     // TODO does core depend on GSon? If not, do we want to add dep?
     Gson gson = new Gson();
-    String json = gson.toJson(new JsonObservers(obsFactoryClass, columns));
+    String json = gson.toJson(new JsonObservers(obsFactoryClass, obsCols));
     CuratorUtil.putData(curator, CONFIG_FLUO_OBSERVERS2, json.getBytes(UTF_8),
         CuratorUtil.NodeExistsPolicy.OVERWRITE);
 
@@ -93,16 +104,16 @@ public class ObserversV2 implements Observers {
     Set<Column> weakColumns = new HashSet<>();
     Set<Column> strongColumns = new HashSet<>();
 
-    for (ObservedColumn oc : jco.getObservedColumns()) {
-      switch (oc.getType()) {
+    for (Entry<Column, NotificationType> entry : jco.getObservedColumns().entrySet()) {
+      switch (entry.getValue()) {
         case STRONG:
-          strongColumns.add(oc.getColumn());
+          strongColumns.add(entry.getKey());
           break;
         case WEAK:
-          weakColumns.add(oc.getColumn());
+          weakColumns.add(entry.getKey());
           break;
         default:
-          throw new IllegalStateException("Unknown notification type " + oc.getType());
+          throw new IllegalStateException("Unknown notification type " + entry.getValue());
       }
     }
 
