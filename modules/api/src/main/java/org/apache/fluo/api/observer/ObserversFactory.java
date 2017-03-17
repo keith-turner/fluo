@@ -39,7 +39,7 @@ public interface ObserversFactory {
     SimpleConfiguration getAppConfiguration();
 
     /**
-     * @return A {@link MetricsReporter} to report application metrics from this observer
+     * @return A {@link MetricsReporter} to report application metrics from observers.
      */
     MetricsReporter getMetricsReporter();
   }

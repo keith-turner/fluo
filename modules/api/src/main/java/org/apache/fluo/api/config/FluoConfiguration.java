@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Preconditions;
 import org.apache.fluo.api.client.FluoClient;
 import org.apache.fluo.api.observer.ObserversFactory;
+import org.apache.fluo.api.observer.ObserversFactory.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -476,7 +477,7 @@ public class FluoConfiguration extends SimpleConfiguration {
    *         to subset will be reflected in this configuration, but with the prefix added. This
    *         method is useful for setting application configuration before initialization. For
    *         reading application configuration after initialization, see
-   *         {@link FluoClient#getAppConfiguration()}
+   *         {@link FluoClient#getAppConfiguration()} and {@link Context#getAppConfiguration()}
    */
   public SimpleConfiguration getAppConfiguration() {
     return subset(APP_PREFIX);
