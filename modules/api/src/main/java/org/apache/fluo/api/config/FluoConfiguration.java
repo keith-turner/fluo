@@ -363,6 +363,8 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /**
    * @since 1.1.0
+   * 
+   * @see ObserversFactory
    */
   public void setObserversFactory(String className) {
     setNonEmptyString(OBSERVERS_FACTORY, className);

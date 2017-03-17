@@ -17,6 +17,7 @@ package org.apache.fluo.api.observer;
 
 import org.apache.fluo.api.client.FluoClient;
 import org.apache.fluo.api.client.TransactionBase;
+import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.api.config.SimpleConfiguration;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
@@ -24,10 +25,7 @@ import org.apache.fluo.api.metrics.MetricsReporter;
 
 /**
  * Implemented by users to a watch a {@link Column} and be notified of changes to the Column via the
- * {@link #process(TransactionBase, Bytes, Column)} method. An observer is created for each worker
- * thread and reused for the lifetime of a worker thread. Consider extending
- * {@link AbstractObserver} as it will let you optionally implement {@link #init(Context)} and
- * {@link #close()}. The abstract class will also shield you from the addition of interface methods.
+ * {@link #process(TransactionBase, Bytes, Column)} method.
  *
  * @since 1.0.0
  */
@@ -102,7 +100,10 @@ public interface Observer {
    *
    * @param context Observer context
    * 
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Fluo will no longer call this method when observers are configured by
+   *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
+   *             observers are configured the old way by
+   *             {@link FluoConfiguration#addObserver(org.apache.fluo.api.config.ObserverSpecification)}
    */
   @Deprecated
   default void init(Context context) throws Exception {}
@@ -124,7 +125,10 @@ public interface Observer {
    * called before this method. If the return value of the method is derived from what is passed to
    * {@link #init(Context)}, then the derivation process should be deterministic.
    * 
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0 Fluo will no longer call this method when observers are configured by
+   *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
+   *             observers are configured the old way by
+   *             {@link FluoConfiguration#addObserver(org.apache.fluo.api.config.ObserverSpecification)}
    */
   @Deprecated
   default ObservedColumn getObservedColumn() {
@@ -134,7 +138,10 @@ public interface Observer {
   /**
    * Implemented by user to close resources used by Observer
    * 
-   * @deprecated since 1.1.0
+   * @deprecated since 1.1.0. Fluo will no longer call this method when observers are configured by
+   *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
+   *             observers are configured the old way by
+   *             {@link FluoConfiguration#addObserver(org.apache.fluo.api.config.ObserverSpecification)}
    */
   @Deprecated
   default void close() {}
