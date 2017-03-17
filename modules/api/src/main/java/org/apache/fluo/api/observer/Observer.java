@@ -73,7 +73,7 @@ public interface Observer {
 
   /**
    * @since 1.0.0
-   * 
+   *
    * @deprecated since 1.1.0
    */
   @Deprecated
@@ -99,7 +99,7 @@ public interface Observer {
    * Implemented by user to initialize Observer.
    *
    * @param context Observer context
-   * 
+   *
    * @deprecated since 1.1.0. Fluo will no longer call this method when observers are configured by
    *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
    *             observers are configured the old way by
@@ -124,7 +124,7 @@ public interface Observer {
    * then an exception will be thrown. It is safe to assume that {@link #init(Context)} will be
    * called before this method. If the return value of the method is derived from what is passed to
    * {@link #init(Context)}, then the derivation process should be deterministic.
-   * 
+   *
    * @deprecated since 1.1.0 Fluo will no longer call this method when observers are configured by
    *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
    *             observers are configured the old way by
@@ -137,7 +137,7 @@ public interface Observer {
 
   /**
    * Implemented by user to close resources used by Observer
-   * 
+   *
    * @deprecated since 1.1.0. Fluo will no longer call this method when observers are configured by
    *             {@link FluoConfiguration#setObserversFactory(String)}. Its only called when
    *             observers are configured the old way by

@@ -364,9 +364,9 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /**
    * Configure the observer factory that Fluo workers will use.
-   * 
+   *
    * @since 1.1.0
-   * 
+   *
    * @param className must be non-null and non-empty
    * @see ObserversFactory
    */
@@ -376,7 +376,7 @@ public class FluoConfiguration extends SimpleConfiguration {
 
   /**
    * Calls {@link #setObserversFactory(String)} with the class name.
-   * 
+   *
    * @since 1.1.0
    */
   public void setObserversFactory(Class<? extends ObserversFactory> clazz) {
