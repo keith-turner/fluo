@@ -398,4 +398,22 @@ public class FluoConfigurationTest {
 
     in.close();
   }
+
+  @Test(expected = NullPointerException.class)
+  public void testNullObserversFactory() {
+    FluoConfiguration fc = new FluoConfiguration();
+    fc.setObserversFactory((String) null);
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testEmptyObserversFactory() {
+    FluoConfiguration fc = new FluoConfiguration();
+    fc.setObserversFactory("");
+  }
+
+  @Test
+  public void testNoObserversFactory() {
+    FluoConfiguration fc = new FluoConfiguration();
+    Assert.assertEquals("", fc.getObserversFactory());
+  }
 }
