@@ -34,9 +34,6 @@ import org.apache.fluo.api.observer.Observer.NotificationType;
  * {@link #createObservers(ObserverConsumer, Context)}, the columns emitted must be the same as
  * those emitted during initialization. If this is not the case, then the worker will fail to start.
  * 
- * <p>
- * TODO observers used by multiple threads.
- * 
  * @see FluoConfiguration#setObserversFactory(String)
  * @since 1.1.0
  */
@@ -69,6 +66,15 @@ public interface ObserversFactory {
     void accepts(Column observedColumn, NotificationType ntfyType, StringObserver observer);
   }
 
+  /**
+   * This is method is called by Fluo Workers to create observers to process notifications.
+   * 
+   * <p>
+   * Observers emitted may be called concurrently by multiple threads to process different
+   * notifications. Observers should be tolerant of this.
+   * 
+   * @param obsConsumer Emit an applications observers to this consumer.
+   */
   void createObservers(ObserverConsumer obsConsumer, Context ctx);
 
   /**
