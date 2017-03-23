@@ -29,13 +29,13 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.fluo.core.impl.Environment;
 import org.apache.hadoop.io.Text;
 
-public class TabletInfoCache<T, S extends Supplier<T>> {
+public class TabletInfoCache<T> {
   private static final long CACHE_TIME = 5 * 60 * 1000;
 
   private final Environment env;
   private List<TabletInfo<T>> cachedTablets;
   private long listSplitsTime = 0;
-  private S supplier;
+  private Supplier<T> supplier;
 
   public static class TabletInfo<T> {
     private final Text start;
@@ -105,7 +105,7 @@ public class TabletInfoCache<T, S extends Supplier<T>> {
     }
   }
 
-  public TabletInfoCache(Environment env, S supplier) {
+  public TabletInfoCache(Environment env, Supplier<T> supplier) {
     this.env = env;
     this.supplier = supplier;
   }
