@@ -27,6 +27,7 @@ import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.data.Range;
 import org.apache.fluo.core.impl.Environment;
+import org.apache.fluo.core.worker.TabletInfoCache.TabletInfo;
 import org.apache.hadoop.io.Text;
 
 public class TabletInfoCache<T> {
@@ -153,5 +154,10 @@ public class TabletInfoCache<T> {
     }
 
     return Collections.unmodifiableList(cachedTablets);
+  }
+
+  public List<TabletInfo<?>> getTablets(boolean b) {
+    // TODO Auto-generated method stub
+    return null;
   }
 }
