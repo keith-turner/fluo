@@ -9,7 +9,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
@@ -21,6 +20,8 @@ import org.apache.curator.framework.recipes.nodes.PersistentEphemeralNode;
 import org.apache.curator.framework.recipes.nodes.PersistentEphemeralNode.Mode;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.fluo.accumulo.util.ZookeeperPath;
+import org.apache.fluo.api.data.Bytes;
+import org.apache.fluo.core.impl.Environment;
 import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.FluoThreadFactory;
 import org.apache.fluo.core.util.HashingCollector;
@@ -31,6 +32,8 @@ import org.apache.fluo.core.worker.TabletInfoCache.TabletInfo;
 import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+//TODO make less sensitive to table splits... simple way to do this is to have workers use a set of table splits for a minimum amount of time.... when any worker detects a change in table splits, it will wait some minimum time before acting on it.. 
 
 public class ParitionManager {
 
@@ -46,6 +49,10 @@ public class ParitionManager {
   private ScheduledFuture<?> scheduledUpdate;
 
   private NotificationProcessor processor;
+
+  private CuratorFramework curator;
+
+  private Environment env;
   
   
   private static final Text END = new Text("END");
@@ -136,7 +143,6 @@ public class ParitionManager {
     return new PartitionInfo(myId, myGroupId, myGroupSize, totalGroups, children.size());
   }
   
-  //TODO better method name or inline?
   static String hashTablets(int groupSize, List<TabletInfo<?>> tablets) {
     
     String hash = tablets.stream() // create stream of tablet info
@@ -163,7 +169,7 @@ public class ParitionManager {
       uniqueData.add(hashTablets(groupSize, tabletCache.getTablets(false)));
       
       SortedSet<String> children = new TreeSet<>();
-      for (ChildData childData : childrenCache.getCurrentData()) {
+      for (ChildData childData : childrenCache.getCurrentData()) { //TODO ignore splits child
         String node = ZKPaths.getNodeFromPath(childData.getPath());
         String data = new String(childData.getData(), StandardCharsets.UTF_8);
         children.add(node);
@@ -215,17 +221,37 @@ public class ParitionManager {
     @Override
     public void run() {
       try{
-        HashSet<String> uniqueData = new HashSet<>();
-      
-        uniqueData.add(hashTablets(groupSize, tabletCache.getTablets(false)));
-      
-        for (ChildData childData : childrenCache.getCurrentData()) {
-          String data = new String(childData.getData(), StandardCharsets.UTF_8);
-          uniqueData.add(data);
+        
+        String me = myESNode.getActualPath();
+        while (me == null) {
+          UtilWaitThread.sleep(100);
+          me = myESNode.getActualPath();
         }
-      
-        if(uniqueData.size() > 1) {
-          scheduleUpdate(0, TimeUnit.SECONDS, false);
+        me = ZKPaths.getNodeFromPath(me);
+        
+        
+        String me2 = me;
+        boolean imFirst = childrenCache.getCurrentData().stream().map(ChildData::getPath).map(ZKPaths::getNodeFromPath).sorted().findFirst()
+            .map(s -> s.equals(me2)).orElse(false);
+        if (imFirst) {
+
+          ChildData childData = childrenCache.getCurrentData(ZookeeperPath.FINDERS+"/splits");
+          if(childData == null) {
+            //set it
+            byte[] currSplitData = SerializedSplits.serializeTableSplits(env);
+            curator.setData().forPath(ZookeeperPath.FINDERS+"/splits", currSplitData); //TODO will this update own cache??
+          } else {
+            HashSet<Bytes> zkSplits = new HashSet<>();
+            SerializedSplits.deserialize(zkSplits::add, childData.getData());
+
+            HashSet<Bytes> currentSplits = new HashSet<>();
+            byte[] currSplitData = SerializedSplits.serializeTableSplits(env);
+            SerializedSplits.deserialize(currentSplits::add, SerializedSplits.serializeTableSplits(env));
+
+            if(!currentSplits.equals(zkSplits)){
+              curator.setData().forPath(ZookeeperPath.FINDERS+"/splits", currSplitData);
+            }
+          }
         }
       }catch(Exception e){
         //TODO log
@@ -233,8 +259,10 @@ public class ParitionManager {
     }
   }
   
-  ParitionManager(CuratorFramework curator, NotificationProcessor processor) {
+  ParitionManager(Environment env, CuratorFramework curator, NotificationProcessor processor) {
     try {
+      this.curator = curator;
+      this.env = env;
       this.processor = processor;
       
       myESNode = new PersistentEphemeralNode(curator, Mode.EPHEMERAL_SEQUENTIAL,
@@ -248,7 +276,7 @@ public class ParitionManager {
 
       //TODO is there  shared thread pool that could be used??
       schedExecutor = Executors.newScheduledThreadPool(1, new FluoThreadFactory("Fluo worker partition manager"));
-      schedExecutor.scheduleWithFixedDelay(new CheckTabletsTask(), 5, 5, TimeUnit.MINUTES); 
+      schedExecutor.scheduleWithFixedDelay(new CheckTabletsTask(), 0, 5, TimeUnit.MINUTES); //TODO make time config
       scheduleUpdate(0, TimeUnit.SECONDS, true);
     } catch (Exception e) {
       throw new RuntimeException(e);

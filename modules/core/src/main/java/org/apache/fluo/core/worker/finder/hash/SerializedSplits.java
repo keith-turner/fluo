@@ -1,0 +1,101 @@
+package org.apache.fluo.core.worker.finder.hash;
+
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import org.apache.accumulo.core.client.AccumuloException;
+import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.TableNotFoundException;
+import org.apache.fluo.api.data.Bytes;
+import org.apache.fluo.api.data.Bytes.BytesBuilder;
+import org.apache.fluo.core.impl.Environment;
+import org.apache.fluo.core.util.ByteUtil;
+
+public class SerializedSplits {
+  
+  private static final int MAX_SIZE = 1<<18;
+
+  public static void deserialize(Consumer<Bytes> splitConsumer, byte[] serializedSplits) {
+    try{
+      ByteArrayInputStream bais = new ByteArrayInputStream(serializedSplits);
+      GZIPInputStream gzis = new GZIPInputStream(bais);
+      DataInputStream dis = new DataInputStream(gzis);
+      
+      int numSplits = dis.readInt();
+      
+      BytesBuilder builder = Bytes.builder();
+      
+      for(int i = 0; i < numSplits; i++) {
+        int len = dis.readInt();
+        builder.setLength(0);
+        builder.append(dis, len);
+        splitConsumer.accept(builder.toBytes());
+      }
+
+    }catch (IOException e){
+      throw new UncheckedIOException(e);
+    }
+  }
+  
+  private static byte[] _serialize(List<Bytes> splits) throws IOException {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    GZIPOutputStream gzOut = new GZIPOutputStream(baos);
+    BufferedOutputStream bos = new BufferedOutputStream(gzOut, 1<<16);
+    DataOutputStream dos = new DataOutputStream(bos);
+    
+    dos.writeInt(splits.size());
+    for (Bytes split : splits) {
+      dos.writeInt(split.length());
+      split.writeTo(dos);
+    }
+    
+    dos.close();
+    
+    return baos.toByteArray();
+  }
+  
+  public static byte[] serialize(List<Bytes> splits) {
+    List<Bytes> splitsCopy = new ArrayList<>(splits);
+    Collections.sort(splitsCopy);
+    
+    try {
+      byte[] serialized = _serialize(splitsCopy);
+      
+      while(serialized.length > MAX_SIZE) {
+        List<Bytes> splitsCopy2 = new ArrayList<>(splitsCopy.size() / 2 + 1);
+        for(int i = 0; i < splitsCopy.size(); i+=2){
+          splitsCopy2.add(splitsCopy.get(i));
+        }
+        
+        splitsCopy = splitsCopy2;
+        serialized = _serialize(splitsCopy);
+      }
+      
+      return serialized;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+  
+  public static byte[] serializeTableSplits(Environment env){
+    List<Bytes> splits;
+    try {
+      splits = env.getConnector().tableOperations().listSplits(env.getTable()).stream().map(ByteUtil::toBytes).collect(Collectors.toList());
+    } catch (TableNotFoundException | AccumuloSecurityException | AccumuloException e) {
+      throw new RuntimeException(e);
+    }
+    return serialize(splits);
+  }
+}
