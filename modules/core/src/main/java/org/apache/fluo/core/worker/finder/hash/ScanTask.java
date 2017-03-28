@@ -15,12 +15,15 @@
 
 package org.apache.fluo.core.worker.finder.hash;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.Scanner;
@@ -35,14 +38,9 @@ import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.UtilWaitThread;
 import org.apache.fluo.core.worker.NotificationFinder;
 import org.apache.fluo.core.worker.NotificationProcessor;
-import org.apache.fluo.core.worker.TabletInfoCache;
-import org.apache.fluo.core.worker.TabletInfoCache.TabletInfo;
-import org.apache.fluo.core.worker.finder.hash.HashNotificationFinder.ModParamsChangedException;
 import org.apache.fluo.core.worker.finder.hash.ParitionManager.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.util.stream.Collectors.toList;
 
 public class ScanTask implements Runnable {
 
@@ -53,7 +51,7 @@ public class ScanTask implements Runnable {
   private final NotificationProcessor proccessor;
   private final Random rand = new Random();
   private final AtomicBoolean stopped;
-  private final TabletInfoCache<TabletData> tabletInfoCache;
+  private final Map<TabletRange, TabletData> tabletsData;
   private final Environment env;
 
   static long STABILIZE_TIME = 10 * 1000;
@@ -61,22 +59,23 @@ public class ScanTask implements Runnable {
   private long minSleepTime;
   private long maxSleepTime;
 
-  ScanTask(NotificationFinder finder, NotificationProcessor proccessor, ParitionManager partitionManager, Environment env, AtomicBoolean stopped) {
+  ScanTask(NotificationFinder finder, NotificationProcessor proccessor,
+      ParitionManager partitionManager, Environment env, AtomicBoolean stopped) {
     this.finder = finder;
-    this.tabletInfoCache = new TabletInfoCache<>(env, new Supplier<TabletData>() {
-      @Override
-      public TabletData get() {
-        return new TabletData();
-      }
-    });
+    this.tabletsData = new HashMap<>();
+
     this.env = env;
     this.stopped = stopped;
 
     this.proccessor = proccessor;
     this.partitionManager = partitionManager;
-    
-    minSleepTime = env.getConfiguration().getInt(FluoConfigurationImpl.MIN_SLEEP_TIME_PROP, FluoConfigurationImpl.MIN_SLEEP_TIME_DEFAULT);
-    maxSleepTime = env.getConfiguration().getInt(FluoConfigurationImpl.MAX_SLEEP_TIME_PROP, FluoConfigurationImpl.MAX_SLEEP_TIME_DEFAULT);
+
+    minSleepTime =
+        env.getConfiguration().getInt(FluoConfigurationImpl.MIN_SLEEP_TIME_PROP,
+            FluoConfigurationImpl.MIN_SLEEP_TIME_DEFAULT);
+    maxSleepTime =
+        env.getConfiguration().getInt(FluoConfigurationImpl.MAX_SLEEP_TIME_PROP,
+            FluoConfigurationImpl.MAX_SLEEP_TIME_DEFAULT);
   }
 
   @Override
@@ -92,50 +91,57 @@ public class ScanTask implements Runnable {
         }
 
         PartitionInfo partition = partitionManager.waitForPartitionInfo();
-
-        // break scan work into a lot of ranges that are randomly ordered. This has a few benefits.
-        // Ensures different workers are scanning different tablets.
-        // Allows checking local state more frequently in the case where work is not present in many
-        // tablets. Allows less frequent scanning of tablets that are
-        // usually empty.
-        List<TabletInfo<TabletData>> tablets = tabletInfoCache.getTablets().stream() // create a stream
-            .filter(new TabletPartitioner(partition)) // only scan tablets for this group
-            .collect(toList());
+        List<TabletRange> tablets = new ArrayList<>(partition.groupsTablets.size());
+        partition.groupsTablets.forEach(tablets::add);
         Collections.shuffle(tablets, rand);
+        tabletsData.keySet().retainAll(new HashSet<>(tablets));
 
         long minRetryTime = maxSleepTime + System.currentTimeMillis();
         int notifications = 0;
         int tabletsScanned = 0;
         try {
-          for (TabletInfo<TabletData> tabletInfo : tablets) {
-            if (System.currentTimeMillis() >= tabletInfo.getData().retryTime) {
-              int count = 0;
-              PartitionInfo pi = partitionManager.getPartitionInfo();
-              if (partition.equals(pi)) {
+          for (TabletRange tabletRange : tablets) {
+
+            TabletData tabletData =
+                tabletsData.computeIfAbsent(tabletRange, tr -> new TabletData());
+
+            int count = 0;
+            PartitionInfo pi = partitionManager.getPartitionInfo();
+            if (partition.equals(pi)) {
+              try {
+                // TODO following prevents adding notifications with a later date....
+                // start remembering any deleted notifications for this tablet... will not add them
+                // back
+                proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));
                 // notifications could have been asynchronously queued for deletion. Let that happen
                 // 1st before scanning
                 env.getSharedResources().getBatchWriter().waitForAsyncFlush();
-                count = scan(partition, tabletInfo.getRange());
+
+                count = scan(partition, tabletRange.getRange());
                 tabletsScanned++;
+              } finally {
+                proccessor.finishAddingNotifications();
               }
-              tabletInfo.getData().updateScanCount(count, maxSleepTime);
-              notifications += count;
-              if (stopped.get()) {
-                break;
-              }
+            } else {
+              break;
+            }
+            tabletData.updateScanCount(count, maxSleepTime);
+            notifications += count;
+            if (stopped.get()) {
+              break;
             }
 
-            minRetryTime = Math.min(tabletInfo.getData().retryTime, minRetryTime);
+            minRetryTime = Math.min(tabletData.retryTime, minRetryTime);
           }
-        } catch (ModParamsChangedException mpce) {
-          proccessor.clear(); //TODO should probably be done elsewhere
+        } catch (PartitionInfoChangedException mpce) {
         }
 
         long sleepTime = Math.max(minSleepTime, minRetryTime - System.currentTimeMillis());
 
         qSize = proccessor.size();
 
-        log.debug("Scanned {} of {} tablets, added {} new notifications (total queued {})", tabletsScanned, tablets.size(), notifications, qSize);
+        log.debug("Scanned {} of {} tablets, added {} new notifications (total queued {})",
+            tabletsScanned, tablets.size(), notifications, qSize);
 
         if (!stopped.get()) {
           UtilWaitThread.sleep(sleepTime, stopped);
@@ -148,7 +154,6 @@ public class ScanTask implements Runnable {
           log.error("Error while looking for notifications", e);
         }
       }
-
     }
   }
 
@@ -177,9 +182,9 @@ public class ScanTask implements Runnable {
 
     int count = 0;
 
-    for (Entry<Key,Value> entry : scanner) {
+    for (Entry<Key, Value> entry : scanner) {
       if (!pi.equals(partitionManager.getPartitionInfo())) {
-        throw new HashNotificationFinder.ModParamsChangedException();
+        throw new PartitionInfoChangedException();
       }
 
       if (stopped.get()) {

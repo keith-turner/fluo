@@ -16,15 +16,20 @@
 package org.apache.fluo.core.worker;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.base.Preconditions;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.core.impl.Environment;
@@ -63,7 +68,9 @@ public class NotificationProcessor implements AutoCloseable {
   // little utility class that tracks all notifications in queue
   private class NotificationTracker {
     private Map<RowColumn, Future<?>> queuedWork = new HashMap<>();
+    private Set<RowColumn> recentlyDeleted = new HashSet<>();
     private long sizeInBytes = 0;
+    private Predicate<RowColumn> notificationsToRemember;
     private static final long MAX_SIZE = 1 << 24;
 
     private long size(RowColumn rowCol) {
@@ -74,7 +81,7 @@ public class NotificationProcessor implements AutoCloseable {
 
     public synchronized boolean add(RowColumn rowCol, Future<?> task) {
 
-      if (queuedWork.containsKey(rowCol)) {
+      if (queuedWork.containsKey(rowCol) || recentlyDeleted.contains(rowCol)) {
         return false;
       }
 
@@ -97,6 +104,9 @@ public class NotificationProcessor implements AutoCloseable {
 
     public synchronized void remove(RowColumn rowCol) {
       if (queuedWork.remove(rowCol) != null) {
+        if (notificationsToRemember != null && notificationsToRemember.test(rowCol)) {
+          recentlyDeleted.add(rowCol);
+        }
         sizeInBytes -= size(rowCol);
         notify();
       }
@@ -120,6 +130,16 @@ public class NotificationProcessor implements AutoCloseable {
       queuedWork.put(rowCol, ft);
 
       return true;
+    }
+
+    public synchronized void beginAddingNotifications(Predicate<RowColumn> notificationsToRemember) {
+      Preconditions.checkState(this.notificationsToRemember == null);
+      this.notificationsToRemember = Objects.requireNonNull(notificationsToRemember);
+    }
+
+    public synchronized void finishAddingNotifications() {
+      Preconditions.checkState(this.notificationsToRemember != null);
+      recentlyDeleted.clear();
     }
 
   }
@@ -175,6 +195,10 @@ public class NotificationProcessor implements AutoCloseable {
     }
   }
 
+  public void beginAddingNotifications(Predicate<RowColumn> notificationsToRemember) {
+    tracker.beginAddingNotifications(notificationsToRemember);
+  }
+
   public boolean addNotification(final NotificationFinder notificationFinder,
       final Notification notification) {
 
@@ -195,6 +219,11 @@ public class NotificationProcessor implements AutoCloseable {
 
     return true;
   }
+
+  public void finishAddingNotifications() {
+    tracker.finishAddingNotifications();
+  }
+
 
   public void requeueNotification(final NotificationFinder notificationFinder,
       final Notification notification) {
