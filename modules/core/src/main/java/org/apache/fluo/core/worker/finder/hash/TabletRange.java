@@ -101,8 +101,8 @@ public class TabletRange {
     return tablets;
   }
 
-  
-  
+
+
   public Range getRange() {
     Text tper = Optional.ofNullable(prevEndRow).map(ByteUtil::toText).orElse(null);
     Text ter = Optional.ofNullable(endRow).map(ByteUtil::toText).orElse(null);

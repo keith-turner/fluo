@@ -82,27 +82,30 @@ public class ScanTask implements Runnable {
   @Override
   public void run() {
 
-    
+
     List<TabletRange> tablets = new ArrayList<>();
     Set<TabletRange> tabletSet = new HashSet<>();
-    
+
     int qSize = proccessor.size();
 
     while (!stopped.get()) {
       try {
         System.out.println("Waiting for partition info ");
-        
+
         PartitionInfo partition = partitionManager.waitForPartitionInfo();
-        
-        System.out.println("Got partition info "+partition);
-        
+
+        System.out.println("Got partition info " + partition);
+
         while (proccessor.size() > qSize / 2 && !stopped.get()) {
           UtilWaitThread.sleep(50, stopped);
         }
-        
+
         tablets.clear();
         tabletSet.clear();
-        partition.groupsTablets.forEach(t -> {tablets.add(t); tabletSet.add(t);});
+        partition.groupsTablets.forEach(t -> {
+          tablets.add(t);
+          tabletSet.add(t);
+        });
         Collections.shuffle(tablets, rand);
         tabletsData.keySet().retainAll(tabletSet);
 
@@ -111,8 +114,8 @@ public class ScanTask implements Runnable {
         int tabletsScanned = 0;
         try {
           for (TabletRange tabletRange : tablets) {
-            
-            System.out.println("scanning tablet "+tabletRange);
+
+            System.out.println("scanning tablet " + tabletRange);
 
             TabletData tabletData =
                 tabletsData.computeIfAbsent(tabletRange, tr -> new TabletData());
@@ -127,7 +130,8 @@ public class ScanTask implements Runnable {
                 proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));
                 // notifications could have been asynchronously queued for deletion. Let that happen
                 // 1st before scanning
-                env.getSharedResources().getBatchWriter().waitForAsyncFlush(); //TODO think about order of these
+                env.getSharedResources().getBatchWriter().waitForAsyncFlush(); // TODO think about
+                                                                               // order of these
 
                 count = scan(partition, tabletRange.getRange());
                 tabletsScanned++;

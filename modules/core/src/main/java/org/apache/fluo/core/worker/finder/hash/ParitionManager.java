@@ -179,8 +179,8 @@ public class ParitionManager {
       }
       me = ZKPaths.getNodeFromPath(me);
 
-      System.out.println("me "+me);
-      
+      System.out.println("me " + me);
+
       byte[] zkSplitData = null;
       SortedSet<String> children = new TreeSet<>();
       for (ChildData childData : childrenCache.getCurrentData()) { // TODO ignore splits child
@@ -192,8 +192,8 @@ public class ParitionManager {
         }
       }
 
-      System.out.println("children "+children);
-       
+      System.out.println("children " + children);
+
       // TODO log ONE info when not finding notifications ... and then log one info when finding
       // notifications....
       if (zkSplitData == null) {
@@ -217,8 +217,8 @@ public class ParitionManager {
       Collection<TabletRange> tabletRanges = TabletRange.toTabletRanges(zkSplits);
       PartitionInfo newPI = getGroupInfo(me, children, tabletRanges, groupSize);
 
-      System.out.println("newPI "+newPI);
-      
+      System.out.println("newPI " + newPI);
+
       setPartitionInfo(newPI);
     } catch (InterruptedException e) {
       log.debug("Interrupted while gathering tablet and notification partitioning info.", e);
@@ -245,32 +245,32 @@ public class ParitionManager {
         }
         me = ZKPaths.getNodeFromPath(me);
 
-        System.out.println("ctt me "+me);
-        
-        
+        System.out.println("ctt me " + me);
+
+
         String me2 = me;
         boolean imFirst =
             childrenCache.getCurrentData().stream().map(ChildData::getPath)
                 .map(ZKPaths::getNodeFromPath).sorted().findFirst().map(s -> s.equals(me2))
                 .orElse(false);
-        
-        System.out.println("ctt imFirst "+imFirst);
-        
+
+        System.out.println("ctt imFirst " + imFirst);
+
         if (imFirst) {
 
           ChildData childData = childrenCache.getCurrentData(ZookeeperPath.FINDERS + "/splits");
           if (childData == null) {
             // set it
             byte[] currSplitData = SerializedSplits.serializeTableSplits(env);
-            
-              curator.create().forPath(ZookeeperPath.FINDERS + "/splits", currSplitData);
-           // TODO
-              // will
-              // this
-              // update
-              // own
-              // cache??
-            
+
+            curator.create().forPath(ZookeeperPath.FINDERS + "/splits", currSplitData);
+            // TODO
+            // will
+            // this
+            // update
+            // own
+            // cache??
+
           } else {
             HashSet<Bytes> zkSplits = new HashSet<>();
             SerializedSplits.deserialize(zkSplits::add, childData.getData());
@@ -333,7 +333,7 @@ public class ParitionManager {
 
   synchronized PartitionInfo waitForPartitionInfo() throws InterruptedException {
     while (partitionInfo == null || System.nanoTime() - paritionSetTime < WAIT_TIME) {
-      System.out.println("wpi "+partitionInfo+" "+(System.nanoTime() - paritionSetTime));
+      System.out.println("wpi " + partitionInfo + " " + (System.nanoTime() - paritionSetTime));
       wait(500); // TODO use nanotime diff
     }
 
@@ -361,7 +361,7 @@ public class ParitionManager {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-    
+
     schedExecutor.shutdownNow();
     // TODO wait???
   }
