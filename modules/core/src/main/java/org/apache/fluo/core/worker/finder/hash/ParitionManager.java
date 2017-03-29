@@ -15,6 +15,7 @@
 
 package org.apache.fluo.core.worker.finder.hash;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -45,14 +46,11 @@ import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.FluoThreadFactory;
 import org.apache.fluo.core.util.UtilWaitThread;
+import org.apache.zookeeper.KeeperException.NodeExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.util.stream.Collectors.toList;
-
-// TODO make less sensitive to table splits... simple way to do this is to have workers use a set of
-// table splits for a minimum amount of time.... when any worker detects a change in table splits,
-// it will wait some minimum time before acting on it..
 
 public class ParitionManager {
 
@@ -69,7 +67,7 @@ public class ParitionManager {
 
   private Environment env;
 
-  private static final long WAIT_TIME = TimeUnit.SECONDS.toNanos(60); // TODO config
+  private static final long WAIT_TIME = TimeUnit.SECONDS.toNanos(1); // TODO config
 
   private class FindersListener implements PathChildrenCacheListener {
 
@@ -176,11 +174,13 @@ public class ParitionManager {
     try {
       String me = myESNode.getActualPath();
       while (me == null) {
-        UtilWaitThread.sleep(100);
+        Thread.sleep(100);
         me = myESNode.getActualPath();
       }
       me = ZKPaths.getNodeFromPath(me);
 
+      System.out.println("me "+me);
+      
       byte[] zkSplitData = null;
       SortedSet<String> children = new TreeSet<>();
       for (ChildData childData : childrenCache.getCurrentData()) { // TODO ignore splits child
@@ -192,6 +192,8 @@ public class ParitionManager {
         }
       }
 
+      System.out.println("children "+children);
+       
       // TODO log ONE info when not finding notifications ... and then log one info when finding
       // notifications....
       if (zkSplitData == null) {
@@ -215,7 +217,11 @@ public class ParitionManager {
       Collection<TabletRange> tabletRanges = TabletRange.toTabletRanges(zkSplits);
       PartitionInfo newPI = getGroupInfo(me, children, tabletRanges, groupSize);
 
+      System.out.println("newPI "+newPI);
+      
       setPartitionInfo(newPI);
+    } catch (InterruptedException e) {
+      log.debug("Interrupted while gathering tablet and notification partitioning info.", e);
     } catch (Exception e) {
       log.warn("Problem gathering tablet and notification partitioning info.", e);
       setPartitionInfo(null); // disable this worker from processing notifications
@@ -239,24 +245,32 @@ public class ParitionManager {
         }
         me = ZKPaths.getNodeFromPath(me);
 
-
+        System.out.println("ctt me "+me);
+        
+        
         String me2 = me;
         boolean imFirst =
             childrenCache.getCurrentData().stream().map(ChildData::getPath)
                 .map(ZKPaths::getNodeFromPath).sorted().findFirst().map(s -> s.equals(me2))
                 .orElse(false);
+        
+        System.out.println("ctt imFirst "+imFirst);
+        
         if (imFirst) {
 
           ChildData childData = childrenCache.getCurrentData(ZookeeperPath.FINDERS + "/splits");
           if (childData == null) {
             // set it
             byte[] currSplitData = SerializedSplits.serializeTableSplits(env);
-            curator.setData().forPath(ZookeeperPath.FINDERS + "/splits", currSplitData); // TODO
-                                                                                         // will
-                                                                                         // this
-                                                                                         // update
-                                                                                         // own
-                                                                                         // cache??
+            
+              curator.create().forPath(ZookeeperPath.FINDERS + "/splits", currSplitData);
+           // TODO
+              // will
+              // this
+              // update
+              // own
+              // cache??
+            
           } else {
             HashSet<Bytes> zkSplits = new HashSet<>();
             SerializedSplits.deserialize(zkSplits::add, childData.getData());
@@ -272,6 +286,7 @@ public class ParitionManager {
         }
       } catch (Exception e) {
         // TODO log
+        e.printStackTrace();
       }
     }
   }
@@ -318,6 +333,7 @@ public class ParitionManager {
 
   synchronized PartitionInfo waitForPartitionInfo() throws InterruptedException {
     while (partitionInfo == null || System.nanoTime() - paritionSetTime < WAIT_TIME) {
+      System.out.println("wpi "+partitionInfo+" "+(System.nanoTime() - paritionSetTime));
       wait(500); // TODO use nanotime diff
     }
 
@@ -333,6 +349,19 @@ public class ParitionManager {
   }
 
   public void stop() {
+    try {
+      myESNode.close();
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    try {
+      childrenCache.close();
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    
     schedExecutor.shutdownNow();
     // TODO wait???
   }

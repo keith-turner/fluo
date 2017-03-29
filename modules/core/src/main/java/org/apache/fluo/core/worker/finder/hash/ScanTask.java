@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.accumulo.core.client.IteratorSetting;
@@ -81,26 +82,37 @@ public class ScanTask implements Runnable {
   @Override
   public void run() {
 
+    
+    List<TabletRange> tablets = new ArrayList<>();
+    Set<TabletRange> tabletSet = new HashSet<>();
+    
     int qSize = proccessor.size();
 
     while (!stopped.get()) {
       try {
-
+        System.out.println("Waiting for partition info ");
+        
+        PartitionInfo partition = partitionManager.waitForPartitionInfo();
+        
+        System.out.println("Got partition info "+partition);
+        
         while (proccessor.size() > qSize / 2 && !stopped.get()) {
           UtilWaitThread.sleep(50, stopped);
         }
-
-        PartitionInfo partition = partitionManager.waitForPartitionInfo();
-        List<TabletRange> tablets = new ArrayList<>(partition.groupsTablets.size());
-        partition.groupsTablets.forEach(tablets::add);
+        
+        tablets.clear();
+        tabletSet.clear();
+        partition.groupsTablets.forEach(t -> {tablets.add(t); tabletSet.add(t);});
         Collections.shuffle(tablets, rand);
-        tabletsData.keySet().retainAll(new HashSet<>(tablets));
+        tabletsData.keySet().retainAll(tabletSet);
 
         long minRetryTime = maxSleepTime + System.currentTimeMillis();
         int notifications = 0;
         int tabletsScanned = 0;
         try {
           for (TabletRange tabletRange : tablets) {
+            
+            System.out.println("scanning tablet "+tabletRange);
 
             TabletData tabletData =
                 tabletsData.computeIfAbsent(tabletRange, tr -> new TabletData());
@@ -115,7 +127,7 @@ public class ScanTask implements Runnable {
                 proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));
                 // notifications could have been asynchronously queued for deletion. Let that happen
                 // 1st before scanning
-                env.getSharedResources().getBatchWriter().waitForAsyncFlush();
+                env.getSharedResources().getBatchWriter().waitForAsyncFlush(); //TODO think about order of these
 
                 count = scan(partition, tabletRange.getRange());
                 tabletsScanned++;

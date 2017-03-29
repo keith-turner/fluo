@@ -139,6 +139,7 @@ public class NotificationProcessor implements AutoCloseable {
 
     public synchronized void finishAddingNotifications() {
       Preconditions.checkState(this.notificationsToRemember != null);
+      notificationsToRemember = null;
       recentlyDeleted.clear();
     }
 

@@ -19,12 +19,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import org.apache.accumulo.core.data.Range;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.core.util.ByteUtil;
+import org.apache.hadoop.io.Text;
 
 import static java.util.stream.Collectors.toList;
 
@@ -99,7 +101,11 @@ public class TabletRange {
     return tablets;
   }
 
+  
+  
   public Range getRange() {
-    return new Range(ByteUtil.toText(prevEndRow), false, ByteUtil.toText(endRow), true);
+    Text tper = Optional.ofNullable(prevEndRow).map(ByteUtil::toText).orElse(null);
+    Text ter = Optional.ofNullable(endRow).map(ByteUtil::toText).orElse(null);
+    return new Range(tper, false, ter, true);
   }
 }
