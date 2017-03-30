@@ -28,6 +28,9 @@ public class FluoConfigurationImpl {
 
   public static final String ORACLE_PORT_PROP = FLUO_IMPL_PREFIX + ".oracle.port";
   public static final String WORKER_FINDER_PROP = FLUO_IMPL_PREFIX + ".worker.finder";
+  public static final String WORKER_PARTITION_GROUP_SIZE = FLUO_IMPL_PREFIX
+      + ".worker.finder.partition.groupSize";
+  public static final int WORKER_PARTITION_GROUP_SIZE_DEFAULT = 7;
   public static final String METRICS_RESERVOIR_PROP = FLUO_IMPL_PREFIX + ".metrics.reservoir";
   public static final String MIN_SLEEP_TIME_PROP = FLUO_IMPL_PREFIX
       + ScanTask.class.getSimpleName() + ".minSleep";

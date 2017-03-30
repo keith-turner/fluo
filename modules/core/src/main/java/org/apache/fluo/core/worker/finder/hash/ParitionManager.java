@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Executors;
@@ -42,32 +43,39 @@ import org.apache.fluo.accumulo.util.NotificationUtil;
 import org.apache.fluo.accumulo.util.ZookeeperPath;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.core.impl.Environment;
+import org.apache.fluo.core.impl.FluoConfigurationImpl;
 import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.FluoThreadFactory;
 import org.apache.fluo.core.util.UtilWaitThread;
-import org.apache.zookeeper.KeeperException.NodeExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toList;
 
 public class ParitionManager {
 
   private static final Logger log = LoggerFactory.getLogger(ParitionManager.class);
 
-  private PathChildrenCache childrenCache;
-  private PersistentEphemeralNode myESNode;
-  private int groupSize = 7; // TODO make config
+  private final PathChildrenCache childrenCache;
+  private final PersistentEphemeralNode myESNode;
+  private final int groupSize;
   private long paritionSetTime;
   private PartitionInfo partitionInfo;
-  private ScheduledExecutorService schedExecutor;
+  private final ScheduledExecutorService schedExecutor;
 
   private CuratorFramework curator;
 
   private Environment env;
 
-  private static final long WAIT_TIME = TimeUnit.SECONDS.toNanos(1); // TODO config
+  private final long minSleepTime;
+  private final long maxSleepTime;
+  private long retrySleepTime;
+
+
+
+  private static final long STABILIZE_TIME = TimeUnit.SECONDS.toNanos(60);
 
   private class FindersListener implements PathChildrenCacheListener {
 
@@ -77,11 +85,10 @@ public class ParitionManager {
         case CHILD_ADDED:
         case CHILD_REMOVED:
         case CHILD_UPDATED:
-          scheduleUpdate(0, TimeUnit.SECONDS);
+          scheduleUpdate();
           break;
         default:
           break;
-
       }
     }
   }
@@ -133,7 +140,6 @@ public class ParitionManager {
     int count = 0;
     int myGroupId = -1;
     int myId = -1;
-    int totalGroups = children.size() / groupSize + (children.size() % groupSize > 0 ? 1 : 0);
 
     for (String child : children) {
       if (child.equals(me)) {
@@ -143,7 +149,6 @@ public class ParitionManager {
       }
       count++;
     }
-
 
     count = 0;
     int myGroupSize = 0;
@@ -160,6 +165,7 @@ public class ParitionManager {
       }
     }
 
+    int totalGroups = children.size() / groupSize + (children.size() % groupSize > 0 ? 1 : 0);
 
     int mgid = myGroupId;
     List<TabletRange> groupsTablets =
@@ -183,12 +189,14 @@ public class ParitionManager {
 
       byte[] zkSplitData = null;
       SortedSet<String> children = new TreeSet<>();
+      Set<String> groupSizes = new HashSet<>();
       for (ChildData childData : childrenCache.getCurrentData()) { // TODO ignore splits child
         String node = ZKPaths.getNodeFromPath(childData.getPath());
         if (node.equals("splits")) {
           zkSplitData = childData.getData();
         } else {
           children.add(node);
+          groupSizes.add(new String(childData.getData(), UTF_8));
         }
       }
 
@@ -199,7 +207,7 @@ public class ParitionManager {
       if (zkSplitData == null) {
         log.info("Did not find splits in zookeeper, will retry later.");
         setPartitionInfo(null); // disable this worker from processing notifications
-        scheduleUpdate(15, TimeUnit.SECONDS); // TODO config time
+        scheduleRetry();
         return;
       }
 
@@ -207,7 +215,16 @@ public class ParitionManager {
         log.warn("Did not see self (" + me
             + "), cannot gather tablet and notification partitioning info.");
         setPartitionInfo(null); // disable this worker from processing notifications
-        scheduleUpdate(15, TimeUnit.SECONDS);
+        scheduleRetry();
+        return;
+      }
+
+      // ensure all workers agree on the group size
+      if (groupSizes.size() != 1 || !groupSizes.contains(groupSize + "")) {
+        log.warn("Group size disagreement " + groupSize + " " + groupSizes
+            + ", cannot gather tablet and notification partitioning info.");
+        setPartitionInfo(null); // disable this worker from processing notifications
+        scheduleRetry();
         return;
       }
 
@@ -225,12 +242,19 @@ public class ParitionManager {
     } catch (Exception e) {
       log.warn("Problem gathering tablet and notification partitioning info.", e);
       setPartitionInfo(null); // disable this worker from processing notifications
-      scheduleUpdate(15, TimeUnit.SECONDS);
+      scheduleRetry();
     }
   }
 
-  private synchronized void scheduleUpdate(long delay, TimeUnit tu) {
-    schedExecutor.schedule(() -> updatePartitionInfo(), delay, tu);
+  private synchronized void scheduleRetry() {
+    schedExecutor.schedule(() -> updatePartitionInfo(), retrySleepTime, TimeUnit.MILLISECONDS);
+    retrySleepTime =
+        Math.min(maxSleepTime,
+            (long) (1.5 * retrySleepTime) + (long) (retrySleepTime * Math.random()));
+  }
+
+  private synchronized void scheduleUpdate() {
+    schedExecutor.schedule(() -> updatePartitionInfo(), 0, TimeUnit.MILLISECONDS);
   }
 
   private class CheckTabletsTask implements Runnable {
@@ -260,17 +284,9 @@ public class ParitionManager {
 
           ChildData childData = childrenCache.getCurrentData(ZookeeperPath.FINDERS + "/splits");
           if (childData == null) {
-            // set it
             byte[] currSplitData = SerializedSplits.serializeTableSplits(env);
 
             curator.create().forPath(ZookeeperPath.FINDERS + "/splits", currSplitData);
-            // TODO
-            // will
-            // this
-            // update
-            // own
-            // cache??
-
           } else {
             HashSet<Bytes> zkSplits = new HashSet<>();
             SerializedSplits.deserialize(zkSplits::add, childData.getData());
@@ -291,14 +307,22 @@ public class ParitionManager {
     }
   }
 
-  ParitionManager(Environment env) {
+  ParitionManager(Environment env, long minSleepTime, long maxSleepTime) {
     try {
       this.curator = env.getSharedResources().getCurator();
       this.env = env;
 
+      this.minSleepTime = minSleepTime;
+      this.maxSleepTime = maxSleepTime;
+      this.retrySleepTime = minSleepTime;
+
+      groupSize =
+          env.getConfiguration().getInt(FluoConfigurationImpl.WORKER_PARTITION_GROUP_SIZE,
+              FluoConfigurationImpl.WORKER_PARTITION_GROUP_SIZE_DEFAULT);
+
       myESNode =
           new PersistentEphemeralNode(curator, Mode.EPHEMERAL_SEQUENTIAL, ZookeeperPath.FINDERS
-              + "/f-", new byte[0]);
+              + "/f-", ("" + groupSize).getBytes(UTF_8));
       myESNode.start();
       myESNode.waitForInitialCreate(1, TimeUnit.MINUTES);
 
@@ -306,15 +330,12 @@ public class ParitionManager {
       childrenCache.getListenable().addListener(new FindersListener());
       childrenCache.start(StartMode.BUILD_INITIAL_CACHE);
 
-      // TODO is there shared thread pool that could be used??
       schedExecutor =
           Executors.newScheduledThreadPool(1,
               new FluoThreadFactory("Fluo worker partition manager"));
       schedExecutor.scheduleWithFixedDelay(new CheckTabletsTask(), 0, 5, TimeUnit.MINUTES); // TODO
-                                                                                            // make
-                                                                                            // time
-                                                                                            // config
-      scheduleUpdate(0, TimeUnit.SECONDS);
+
+      scheduleUpdate();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -327,21 +348,26 @@ public class ParitionManager {
         this.partitionInfo = pi;
         this.notifyAll();
       }
+
+      if (pi != null) {
+        retrySleepTime = minSleepTime;
+      }
     }
     log.debug("Set partition info : " + pi);
   }
 
   synchronized PartitionInfo waitForPartitionInfo() throws InterruptedException {
-    while (partitionInfo == null || System.nanoTime() - paritionSetTime < WAIT_TIME) {
+    while (partitionInfo == null
+        || System.nanoTime() - paritionSetTime < Math.min(maxSleepTime, STABILIZE_TIME)) {
       System.out.println("wpi " + partitionInfo + " " + (System.nanoTime() - paritionSetTime));
-      wait(500); // TODO use nanotime diff
+      wait(minSleepTime);
     }
 
     return partitionInfo;
   }
 
   synchronized PartitionInfo getPartitionInfo() {
-    if (System.nanoTime() - paritionSetTime < WAIT_TIME) {
+    if (System.nanoTime() - paritionSetTime < Math.min(maxSleepTime, STABILIZE_TIME)) {
       return null;
     }
 

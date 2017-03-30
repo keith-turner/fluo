@@ -56,13 +56,12 @@ public class ScanTask implements Runnable {
   private final Map<TabletRange, TabletData> tabletsData;
   private final Environment env;
 
-  static long STABILIZE_TIME = 10 * 1000;
-
   private long minSleepTime;
   private long maxSleepTime;
 
   ScanTask(NotificationFinder finder, NotificationProcessor proccessor,
-      ParitionManager partitionManager, Environment env, AtomicBoolean stopped) {
+      ParitionManager partitionManager, Environment env, AtomicBoolean stopped, long minSleepTime,
+      long maxSleepTime) {
     this.finder = finder;
     this.tabletsData = new HashMap<>();
 
@@ -72,12 +71,8 @@ public class ScanTask implements Runnable {
     this.proccessor = proccessor;
     this.partitionManager = partitionManager;
 
-    minSleepTime =
-        env.getConfiguration().getInt(FluoConfigurationImpl.MIN_SLEEP_TIME_PROP,
-            FluoConfigurationImpl.MIN_SLEEP_TIME_DEFAULT);
-    maxSleepTime =
-        env.getConfiguration().getInt(FluoConfigurationImpl.MAX_SLEEP_TIME_PROP,
-            FluoConfigurationImpl.MAX_SLEEP_TIME_DEFAULT);
+    this.minSleepTime = minSleepTime;
+    this.maxSleepTime = maxSleepTime;
   }
 
   @Override
@@ -150,6 +145,7 @@ public class ScanTask implements Runnable {
             minRetryTime = Math.min(tabletData.retryTime, minRetryTime);
           }
         } catch (PartitionInfoChangedException mpce) {
+          // nothing to do
         }
 
         long sleepTime = Math.max(minSleepTime, minRetryTime - System.currentTimeMillis());

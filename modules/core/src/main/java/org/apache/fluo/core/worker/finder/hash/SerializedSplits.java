@@ -64,7 +64,7 @@ public class SerializedSplits {
     }
   }
 
-  private static byte[] _serialize(List<Bytes> splits) throws IOException {
+  private static byte[] serializeInternal(List<Bytes> splits) throws IOException {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     GZIPOutputStream gzOut = new GZIPOutputStream(baos);
     BufferedOutputStream bos = new BufferedOutputStream(gzOut, 1 << 16);
@@ -86,7 +86,7 @@ public class SerializedSplits {
     Collections.sort(splitsCopy);
 
     try {
-      byte[] serialized = _serialize(splitsCopy);
+      byte[] serialized = serializeInternal(splitsCopy);
 
       while (serialized.length > MAX_SIZE) {
         List<Bytes> splitsCopy2 = new ArrayList<>(splitsCopy.size() / 2 + 1);
@@ -95,7 +95,7 @@ public class SerializedSplits {
         }
 
         splitsCopy = splitsCopy2;
-        serialized = _serialize(splitsCopy);
+        serialized = serializeInternal(splitsCopy);
       }
 
       return serialized;

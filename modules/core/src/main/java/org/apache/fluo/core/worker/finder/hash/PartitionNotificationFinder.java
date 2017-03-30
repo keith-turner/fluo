@@ -18,6 +18,7 @@ package org.apache.fluo.core.worker.finder.hash;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.fluo.core.impl.Environment;
+import org.apache.fluo.core.impl.FluoConfigurationImpl;
 import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.worker.NotificationFinder;
 import org.apache.fluo.core.worker.NotificationProcessor;
@@ -42,9 +43,18 @@ public class PartitionNotificationFinder implements NotificationFinder {
 
   @Override
   public void start() {
-    paritionManager = new ParitionManager(env);
+    long minSleepTime =
+        env.getConfiguration().getInt(FluoConfigurationImpl.MIN_SLEEP_TIME_PROP,
+            FluoConfigurationImpl.MIN_SLEEP_TIME_DEFAULT);
+    long maxSleepTime =
+        env.getConfiguration().getInt(FluoConfigurationImpl.MAX_SLEEP_TIME_PROP,
+            FluoConfigurationImpl.MAX_SLEEP_TIME_DEFAULT);
 
-    scanThread = new Thread(new ScanTask(this, processor, paritionManager, env, stopped));
+    paritionManager = new ParitionManager(env, minSleepTime, maxSleepTime);
+
+    scanThread =
+        new Thread(new ScanTask(this, processor, paritionManager, env, stopped, minSleepTime,
+            maxSleepTime));
     scanThread.setName(getClass().getSimpleName() + " " + ScanTask.class.getSimpleName());
     scanThread.setDaemon(true);
     scanThread.start();
