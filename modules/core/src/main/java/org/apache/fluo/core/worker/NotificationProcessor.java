@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 
 import com.codahale.metrics.Gauge;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.core.impl.Environment;
@@ -70,8 +71,10 @@ public class NotificationProcessor implements AutoCloseable {
     private Map<RowColumn, Future<?>> queuedWork = new HashMap<>();
     private Set<RowColumn> recentlyDeleted = new HashSet<>();
     private long sizeInBytes = 0;
-    private Predicate<RowColumn> notificationsToRemember;
+    private Map<Long, Predicate<RowColumn>> memoryPredicates = new HashMap<>();
+    private Predicate<RowColumn> memoryPredicate = rc -> false;
     private static final long MAX_SIZE = 1 << 24;
+    private long nextSessionId = 0;
 
     private long size(RowColumn rowCol) {
       Column col = rowCol.getColumn();
@@ -104,7 +107,7 @@ public class NotificationProcessor implements AutoCloseable {
 
     public synchronized void remove(RowColumn rowCol) {
       if (queuedWork.remove(rowCol) != null) {
-        if (notificationsToRemember != null && notificationsToRemember.test(rowCol)) {
+        if (memoryPredicate.test(rowCol)) {
           recentlyDeleted.add(rowCol);
         }
         sizeInBytes -= size(rowCol);
@@ -132,15 +135,32 @@ public class NotificationProcessor implements AutoCloseable {
       return true;
     }
 
-    public synchronized void beginAddingNotifications(Predicate<RowColumn> notificationsToRemember) {
-      Preconditions.checkState(this.notificationsToRemember == null);
-      this.notificationsToRemember = Objects.requireNonNull(notificationsToRemember);
+    private void resetMemoryPredicate() {
+      memoryPredicate = null;
+      for (Predicate<RowColumn> p : this.memoryPredicates.values()) {
+        if (memoryPredicate == null) {
+          memoryPredicate = p;
+        } else {
+          memoryPredicate = p.or(memoryPredicate);
+        }
+      }
     }
 
-    public synchronized void finishAddingNotifications() {
-      Preconditions.checkState(this.notificationsToRemember != null);
-      notificationsToRemember = null;
-      recentlyDeleted.clear();
+    public synchronized long beginAddingNotifications(Predicate<RowColumn> memoryPredicate) {
+      long sessionId = nextSessionId++;
+      this.memoryPredicates.put(sessionId, Objects.requireNonNull(memoryPredicate));
+      resetMemoryPredicate();
+      return sessionId;
+    }
+
+    public synchronized void finishAddingNotifications(long sessionId) {
+      this.memoryPredicates.remove(sessionId);
+      if (memoryPredicates.size() == 0) {
+        recentlyDeleted.clear();
+        memoryPredicate = rc -> false;
+      } else {
+        resetMemoryPredicate();
+      }
     }
 
   }
@@ -196,35 +216,48 @@ public class NotificationProcessor implements AutoCloseable {
     }
   }
 
-  public void beginAddingNotifications(Predicate<RowColumn> notificationsToRemember) {
-    tracker.beginAddingNotifications(notificationsToRemember);
-  }
+  public class Session implements AutoCloseable {
+    private long id;
 
-  public boolean addNotification(final NotificationFinder notificationFinder,
-      final Notification notification) {
-
-    WorkTaskAsync workTask =
-        new WorkTaskAsync(this, notificationFinder, env, notification, observers);
-    FutureTask<?> ft = new FutureNotificationTask(notification, notificationFinder, workTask);
-
-    if (!tracker.add(notification.getRowColumn(), ft)) {
-      return false;
+    public Session(Predicate<RowColumn> memoryPredicate) {
+      this.id = tracker.beginAddingNotifications(memoryPredicate);
     }
 
-    try {
-      executor.execute(ft);
-    } catch (RejectedExecutionException rje) {
-      tracker.remove(notification.getRowColumn());
-      throw rje;
+    public boolean addNotification(final NotificationFinder notificationFinder,
+        final Notification notification) {
+
+      WorkTaskAsync workTask =
+          new WorkTaskAsync(NotificationProcessor.this, notificationFinder, env, notification,
+              observers);
+      FutureTask<?> ft = new FutureNotificationTask(notification, notificationFinder, workTask);
+
+      if (!tracker.add(notification.getRowColumn(), ft)) {
+        return false;
+      }
+
+      try {
+        executor.execute(ft);
+      } catch (RejectedExecutionException rje) {
+        tracker.remove(notification.getRowColumn());
+        throw rje;
+      }
+
+      return true;
     }
 
-    return true;
+    public void close() {
+      tracker.finishAddingNotifications(id);
+    }
   }
 
-  public void finishAddingNotifications() {
-    tracker.finishAddingNotifications();
+  /**
+   * Starts a session for adding notifications. During this session, any notifications that are
+   * deleted and match the predicate will be remembered. These remembered notifications can not be
+   * added again while the session is active.
+   */
+  public Session beginAddingNotifications(Predicate<RowColumn> memoryPredicate) {
+    return new Session(memoryPredicate);
   }
-
 
   public void requeueNotification(final NotificationFinder notificationFinder,
       final Notification notification) {

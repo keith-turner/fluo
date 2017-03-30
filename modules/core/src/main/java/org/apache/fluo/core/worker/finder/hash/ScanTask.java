@@ -39,6 +39,7 @@ import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.UtilWaitThread;
 import org.apache.fluo.core.worker.NotificationFinder;
 import org.apache.fluo.core.worker.NotificationProcessor;
+import org.apache.fluo.core.worker.NotificationProcessor.Session;
 import org.apache.fluo.core.worker.finder.hash.ParitionManager.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,7 +124,8 @@ public class ScanTask implements Runnable {
             int count = 0;
             PartitionInfo pi = partitionManager.getPartitionInfo();
             if (partition.equals(pi)) {
-              try {
+              try (Session session =
+                  proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));) {
                 // TODO following prevents adding notifications with a later date....
                 // start remembering any deleted notifications for this tablet... will not add them
                 // back
@@ -133,10 +135,8 @@ public class ScanTask implements Runnable {
                 env.getSharedResources().getBatchWriter().waitForAsyncFlush(); // TODO think about
                                                                                // order of these
 
-                count = scan(partition, tabletRange.getRange());
+                count = scan(session, partition, tabletRange.getRange());
                 tabletsScanned++;
-              } finally {
-                proccessor.finishAddingNotifications();
               }
             } else {
               break;
@@ -185,7 +185,7 @@ public class ScanTask implements Runnable {
     return wasInt;
   }
 
-  private int scan(PartitionInfo pi, Range range) throws TableNotFoundException {
+  private int scan(Session session, PartitionInfo pi, Range range) throws TableNotFoundException {
     Scanner scanner = env.getConnector().createScanner(env.getTable(), env.getAuthorizations());
 
     scanner.setRange(range);
@@ -207,7 +207,7 @@ public class ScanTask implements Runnable {
         return count;
       }
 
-      if (proccessor.addNotification(finder, Notification.from(entry.getKey()))) {
+      if (session.addNotification(finder, Notification.from(entry.getKey()))) {
         count++;
       }
     }
