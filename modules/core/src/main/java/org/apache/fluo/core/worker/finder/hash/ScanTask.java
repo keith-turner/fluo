@@ -34,7 +34,6 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.fluo.accumulo.iterators.NotificationHashFilter;
 import org.apache.fluo.core.impl.Environment;
-import org.apache.fluo.core.impl.FluoConfigurationImpl;
 import org.apache.fluo.core.impl.Notification;
 import org.apache.fluo.core.util.UtilWaitThread;
 import org.apache.fluo.core.worker.NotificationFinder;
@@ -86,11 +85,7 @@ public class ScanTask implements Runnable {
 
     while (!stopped.get()) {
       try {
-        System.out.println("Waiting for partition info ");
-
         PartitionInfo partition = partitionManager.waitForPartitionInfo();
-
-        System.out.println("Got partition info " + partition);
 
         while (proccessor.size() > qSize / 2 && !stopped.get()) {
           UtilWaitThread.sleep(50, stopped);
@@ -110,9 +105,6 @@ public class ScanTask implements Runnable {
         int tabletsScanned = 0;
         try {
           for (TabletRange tabletRange : tablets) {
-
-            System.out.println("scanning tablet " + tabletRange);
-
             TabletData tabletData =
                 tabletsData.computeIfAbsent(tabletRange, tr -> new TabletData());
 
@@ -120,15 +112,10 @@ public class ScanTask implements Runnable {
             PartitionInfo pi = partitionManager.getPartitionInfo();
             if (partition.equals(pi)) {
               try (Session session =
-                  proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));) {
-                // TODO following prevents adding notifications with a later date....
-                // start remembering any deleted notifications for this tablet... will not add them
-                // back
-                proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()));
+                  proccessor.beginAddingNotifications(rc -> tabletRange.contains(rc.getRow()))) {
                 // notifications could have been asynchronously queued for deletion. Let that happen
                 // 1st before scanning
-                env.getSharedResources().getBatchWriter().waitForAsyncFlush(); // TODO think about
-                                                                               // order of these
+                env.getSharedResources().getBatchWriter().waitForAsyncFlush();
 
                 count = scan(session, partition, tabletRange.getRange());
                 tabletsScanned++;

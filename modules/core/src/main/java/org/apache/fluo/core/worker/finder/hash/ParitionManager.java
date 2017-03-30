@@ -185,8 +185,6 @@ public class ParitionManager {
       }
       me = ZKPaths.getNodeFromPath(me);
 
-      System.out.println("me " + me);
-
       byte[] zkSplitData = null;
       SortedSet<String> children = new TreeSet<>();
       Set<String> groupSizes = new HashSet<>();
@@ -199,8 +197,6 @@ public class ParitionManager {
           groupSizes.add(new String(childData.getData(), UTF_8));
         }
       }
-
-      System.out.println("children " + children);
 
       // TODO log ONE info when not finding notifications ... and then log one info when finding
       // notifications....
@@ -233,8 +229,6 @@ public class ParitionManager {
 
       Collection<TabletRange> tabletRanges = TabletRange.toTabletRanges(zkSplits);
       PartitionInfo newPI = getGroupInfo(me, children, tabletRanges, groupSize);
-
-      System.out.println("newPI " + newPI);
 
       setPartitionInfo(newPI);
     } catch (InterruptedException e) {
@@ -269,16 +263,11 @@ public class ParitionManager {
         }
         me = ZKPaths.getNodeFromPath(me);
 
-        System.out.println("ctt me " + me);
-
-
         String me2 = me;
         boolean imFirst =
             childrenCache.getCurrentData().stream().map(ChildData::getPath)
                 .map(ZKPaths::getNodeFromPath).sorted().findFirst().map(s -> s.equals(me2))
                 .orElse(false);
-
-        System.out.println("ctt imFirst " + imFirst);
 
         if (imFirst) {
 
@@ -359,7 +348,6 @@ public class ParitionManager {
   synchronized PartitionInfo waitForPartitionInfo() throws InterruptedException {
     while (partitionInfo == null
         || System.nanoTime() - paritionSetTime < Math.min(maxSleepTime, STABILIZE_TIME)) {
-      System.out.println("wpi " + partitionInfo + " " + (System.nanoTime() - paritionSetTime));
       wait(minSleepTime);
     }
 
