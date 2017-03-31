@@ -17,6 +17,7 @@ package org.apache.fluo.core.worker.finder.hash;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
@@ -57,7 +58,19 @@ public class TabletSet {
   public boolean equals(Object o) {
     if (o instanceof TabletSet) {
       TabletSet ots = (TabletSet) o;
-      return tmap.keySet().equals(ots.tmap.keySet()) && lastTablet.equals(ots.lastTablet);
+      
+      if(tmap.size() != ots.tmap.size()) {
+        return false;
+      }
+      
+      for (Entry<Bytes,TabletRange> entry : tmap.entrySet()) {
+        TabletRange otr = ots.tmap.get(entry.getKey());
+        if(!Objects.equals(entry.getValue(), otr)){
+          return false;
+        }
+      }
+      
+      return lastTablet.equals(ots.lastTablet);
     }
     return false;
   }

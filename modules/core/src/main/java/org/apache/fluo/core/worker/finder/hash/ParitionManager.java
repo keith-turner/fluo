@@ -150,21 +150,10 @@ public class ParitionManager {
       count++;
     }
 
-    count = 0;
-    int myGroupSize = 0;
-
-    for (int i = 0; i < children.size(); i++) {
-      if (count >= myGroupId * groupSize) {
-        myGroupSize++;
-      }
-
-      count++;
-
-      if (count == (myGroupId + 1) * groupSize + 1) {
-        break;
-      }
-    }
-
+    int groupStart = myGroupId * groupSize;
+    int groupEnd = Math.min(children.size(), groupStart + groupSize);
+    int myGroupSize = groupEnd - groupStart;
+    
     int totalGroups = children.size() / groupSize + (children.size() % groupSize > 0 ? 1 : 0);
 
     int mgid = myGroupId;
