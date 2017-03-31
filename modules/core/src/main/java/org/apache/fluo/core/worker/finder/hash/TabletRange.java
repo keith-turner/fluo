@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 import org.apache.accumulo.core.data.Range;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.core.util.ByteUtil;
@@ -30,7 +28,7 @@ import org.apache.hadoop.io.Text;
 
 import static java.util.stream.Collectors.toList;
 
-public class TabletRange {
+public class TabletRange implements Comparable<TabletRange> {
   private final Bytes prevEndRow;
   private final Bytes endRow;
   private final int hc;
@@ -38,25 +36,11 @@ public class TabletRange {
   public TabletRange(Bytes per, Bytes er) {
     this.prevEndRow = per;
     this.endRow = er;
-
-    Hasher hasher = Hashing.murmur3_32().newHasher();
-    if (per != null) {
-      hasher.putBytes(per.toArray());
-    }
-
-    if (er != null) {
-      hasher.putBytes(er.toArray());
-    }
-
-    this.hc = hasher.hash().asInt();
+    this.hc = Objects.hash(this.prevEndRow, this.endRow);
   }
 
   @Override
   public int hashCode() {
-    return hc;
-  }
-
-  public int persistentHashCode() {
     return hc;
   }
 
@@ -107,5 +91,23 @@ public class TabletRange {
     Text tper = Optional.ofNullable(prevEndRow).map(ByteUtil::toText).orElse(null);
     Text ter = Optional.ofNullable(endRow).map(ByteUtil::toText).orElse(null);
     return new Range(tper, false, ter, true);
+  }
+
+  @Override
+  public int compareTo(TabletRange o) {
+    if (Objects.equals(getEndRow(), o.getEndRow())) {
+      // this will catch case of both null
+      return 0;
+    }
+
+    if (getEndRow() == null) {
+      return 1;
+    }
+
+    if (o.getEndRow() == null) {
+      return -1;
+    }
+
+    return getEndRow().compareTo(o.getEndRow());
   }
 }

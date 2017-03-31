@@ -58,19 +58,19 @@ public class TabletSet {
   public boolean equals(Object o) {
     if (o instanceof TabletSet) {
       TabletSet ots = (TabletSet) o;
-      
-      if(tmap.size() != ots.tmap.size()) {
+
+      if (tmap.size() != ots.tmap.size()) {
         return false;
       }
-      
-      for (Entry<Bytes,TabletRange> entry : tmap.entrySet()) {
+
+      for (Entry<Bytes, TabletRange> entry : tmap.entrySet()) {
         TabletRange otr = ots.tmap.get(entry.getKey());
-        if(!Objects.equals(entry.getValue(), otr)){
+        if (!Objects.equals(entry.getValue(), otr)) {
           return false;
         }
       }
-      
-      return lastTablet.equals(ots.lastTablet);
+
+      return Objects.equals(lastTablet, ots.lastTablet);
     }
     return false;
   }

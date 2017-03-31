@@ -16,7 +16,10 @@
 package org.apache.fluo.core.worker.finder.hash;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IntSummaryStatistics;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
@@ -30,37 +33,74 @@ import org.junit.Test;
 import static java.util.stream.Collectors.toList;
 
 public class PartitionManagerTest {
-  
+
   @Test
   public void testGrouping() {
-    IntFunction<String> nff = i -> String.format("f-%04d",i);
-    
-    TreeSet<String> children = new TreeSet<>();
-    
-    IntStream.range(0, 20).mapToObj(nff).forEach(children::add);
-    Collection<Bytes> rows = IntStream.range(0, 100).mapToObj(i -> String.format("r%06d",i)).map(Bytes::of).collect(toList());
-    Collection<TabletRange> tablets = TabletRange.toTabletRanges(rows);
-    
-    Set<String> idCombos = new HashSet<>();
-    
-    
-    for(int i = 0; i< 20; i++) {
-      String me = nff.apply(i);
-      PartitionInfo pi = ParitionManager.getGroupInfo(me, children, tablets, 5);
-      Assert.assertEquals(4, pi.groups);
-      Assert.assertEquals(5, pi.groupSize);
-      Assert.assertEquals(20, pi.workers);
-      Assert.assertTrue(pi.idInGroup >= 0 && pi.idInGroup < 5);
-      Assert.assertTrue(pi.groupId >= 0 && pi.groupId < 4);
-    
-      Assert.assertFalse(idCombos.contains(pi.groupId+":"+pi.idInGroup));
-      idCombos.add(pi.groupId+":"+pi.idInGroup);
-      
-      //TODO check tablets
-      
-      System.out.println(pi);
+    IntFunction<String> nff = i -> String.format("f-%04d", i);
+
+    int numWorkers = 100;
+    int numSplits = 1000;
+
+    for (int groupSize : new int[] {1, 2, 3, 5, 7, 13, 17, 19, 43, 73, 97}) {
+      int expectedGroups = numWorkers / groupSize;
+      int maxGroupSize =
+          groupSize + (int) Math.ceil((numWorkers % groupSize) / (double) expectedGroups);
+
+      TreeSet<String> children = new TreeSet<>();
+
+      IntStream.range(0, numWorkers).mapToObj(nff).forEach(children::add);
+
+      Collection<Bytes> rows =
+          IntStream.iterate(0, i -> i + 1000).limit(numSplits)
+              .mapToObj(i -> String.format("r%06d", i)).map(Bytes::of).collect(toList());
+      Collection<TabletRange> tablets = TabletRange.toTabletRanges(rows);
+
+      Set<String> idCombos = new HashSet<>();
+      Map<Integer, TabletSet> groupTablets = new HashMap<>();
+
+      for (int i = 0; i < numWorkers; i++) {
+        String me = nff.apply(i);
+        PartitionInfo pi = ParitionManager.getGroupInfo(me, children, tablets, groupSize);
+        Assert.assertEquals(expectedGroups, pi.groups);
+
+        Assert.assertTrue(pi.groupSize >= groupSize && pi.groupSize <= maxGroupSize);
+        Assert.assertEquals(numWorkers, pi.workers);
+        Assert.assertTrue(pi.idInGroup >= 0 && pi.idInGroup < maxGroupSize);
+        Assert.assertTrue(pi.groupId >= 0 && pi.groupId < expectedGroups);
+
+        Assert.assertFalse(idCombos.contains(pi.groupId + ":" + pi.idInGroup));
+        idCombos.add(pi.groupId + ":" + pi.idInGroup);
+
+        if (!groupTablets.containsKey(pi.groupId)) {
+          groupTablets.put(pi.groupId, pi.groupsTablets);
+        } else {
+          Assert.assertEquals(groupTablets.get(pi.groupId), pi.groupsTablets);
+        }
+      }
+
+      Assert.assertEquals(numWorkers, idCombos.size());
+
+
+      // check that the tablets for each group are disjoint and that the union of the tablets for
+      // each group has all tablets
+      HashSet<TabletRange> allTabletsFromGroups = new HashSet<>();
+
+      for (TabletSet tabletSet : groupTablets.values()) {
+        tabletSet.forEach(tr -> {
+          Assert.assertFalse(allTabletsFromGroups.contains(tr));
+          allTabletsFromGroups.add(tr);
+        });
+      }
+
+      Assert.assertEquals(new HashSet<>(tablets), allTabletsFromGroups);
+
+      // check that all groups have about the same number of tablets
+      IntSummaryStatistics summaryStats =
+          groupTablets.values().stream().mapToInt(TabletSet::size).summaryStatistics();
+      Assert.assertTrue(summaryStats.getMax() - summaryStats.getMin() < 2);
     }
-    
-    Assert.assertEquals(20, idCombos.size());
+
+
+
   }
 }

@@ -18,8 +18,10 @@ package org.apache.fluo.core.worker.finder.hash;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -137,31 +139,43 @@ public class ParitionManager {
     // TODO backfill holes inorder to keep groups more stable OR look into using
     // Hashing.consistentHash
 
+    int numGroups = children.size() / groupSize;
+    int[] groupSizes = new int[numGroups];
     int count = 0;
     int myGroupId = -1;
     int myId = -1;
 
     for (String child : children) {
       if (child.equals(me)) {
-        myGroupId = count / groupSize;
-        myId = count % groupSize;
-        break;
+        myGroupId = count;
+        myId = groupSizes[count];
       }
-      count++;
+      groupSizes[count]++;
+      count = (count + 1) % numGroups;
     }
 
-    int groupStart = myGroupId * groupSize;
-    int groupEnd = Math.min(children.size(), groupStart + groupSize);
-    int myGroupSize = groupEnd - groupStart;
-    
-    int totalGroups = children.size() / groupSize + (children.size() % groupSize > 0 ? 1 : 0);
 
-    int mgid = myGroupId;
-    List<TabletRange> groupsTablets =
-        tablets.stream().filter(tr -> Math.abs(tr.persistentHashCode()) % totalGroups == mgid)
-            .collect(toList());
+    int myGroupSize = groupSizes[myGroupId];
 
-    return new PartitionInfo(myId, myGroupId, myGroupSize, totalGroups, children.size(),
+    List<TabletRange> tabletsCopy = new ArrayList<>(tablets);
+    Collections.sort(tabletsCopy);
+
+    // hopefully this shuffles the same on every jvm!. Did try to use hashing to partition the
+    // tablets among groups, but it was uneven. One group having a 10% more tablets would lead to
+    // uneven utilization.
+    Collections.shuffle(tabletsCopy, new Random(42));
+
+    List<TabletRange> groupsTablets = new ArrayList<>();
+
+    count = 0;
+    for (TabletRange tr : tabletsCopy) {
+      if (count == myGroupId) {
+        groupsTablets.add(tr);
+      }
+      count = (count + 1) % numGroups;
+    }
+
+    return new PartitionInfo(myId, myGroupId, myGroupSize, numGroups, children.size(),
         groupsTablets);
   }
 
