@@ -54,7 +54,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.toList;
 
 public class ParitionManager {
 
@@ -95,49 +94,9 @@ public class ParitionManager {
     }
   }
 
-  static class PartitionInfo {
-    final int groupId;
-    final int idInGroup;
-    final int groups;
-    final int groupSize;
-    final int workers;
-    final TabletSet groupsTablets;
-
-    PartitionInfo(int myId, int myGroupId, int myGroupSize, int totalGroups, int totalWorkers,
-        List<TabletRange> groupsTablets) {
-      this.idInGroup = myId;
-      this.groupId = myGroupId;
-      this.groupSize = myGroupSize;
-      this.groups = totalGroups;
-      this.workers = totalWorkers;
-      this.groupsTablets = new TabletSet(groupsTablets);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (o instanceof PartitionInfo) {
-        PartitionInfo other = (PartitionInfo) o;
-        return other.groupId == groupId && other.idInGroup == idInGroup && other.groups == groups
-            && other.groupSize == groupSize && other.workers == workers
-            && other.groupsTablets.equals(groupsTablets);
-      }
-      return false;
-    }
-
-    @Override
-    public String toString() {
-      return String.format(
-          "workers:%d  groups:%d  groupSize:%d  groupId:%d  idInGroup:%d  #tablets:%d", workers,
-          groups, groupSize, groupId, idInGroup, groupsTablets.size());
-    }
-  }
-
   // TODO unit test
   static PartitionInfo getGroupInfo(String me, SortedSet<String> children,
       Collection<TabletRange> tablets, int groupSize) {
-
-    // TODO backfill holes inorder to keep groups more stable OR look into using
-    // Hashing.consistentHash
 
     int numGroups = children.size() / groupSize;
     int[] groupSizes = new int[numGroups];
@@ -161,7 +120,8 @@ public class ParitionManager {
     Collections.sort(tabletsCopy);
 
     // hopefully this shuffles the same on every jvm!. Did try to use hashing to partition the
-    // tablets among groups, but it was uneven. One group having a 10% more tablets would lead to
+    // tablets among groups, but it was slightly uneven. One group having a 10% more tablets would
+    // lead to
     // uneven utilization.
     Collections.shuffle(tabletsCopy, new Random(42));
 
@@ -396,7 +356,7 @@ public class ParitionManager {
       return false;
     }
 
-    return pi.groupsTablets.getContaining(notification.getRow()) != null
-        && shouldProcess(notification, pi.groupSize, pi.idInGroup);
+    return pi.getGroupsTablets().getContaining(notification.getRow()) != null
+        && shouldProcess(notification, pi.getGroupSize(), pi.getIdInGroup());
   }
 }

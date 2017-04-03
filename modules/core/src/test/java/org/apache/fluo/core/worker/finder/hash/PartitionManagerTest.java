@@ -26,7 +26,6 @@ import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
 import org.apache.fluo.api.data.Bytes;
-import org.apache.fluo.core.worker.finder.hash.ParitionManager.PartitionInfo;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -61,20 +60,20 @@ public class PartitionManagerTest {
       for (int i = 0; i < numWorkers; i++) {
         String me = nff.apply(i);
         PartitionInfo pi = ParitionManager.getGroupInfo(me, children, tablets, groupSize);
-        Assert.assertEquals(expectedGroups, pi.groups);
+        Assert.assertEquals(expectedGroups, pi.getGroups());
 
-        Assert.assertTrue(pi.groupSize >= groupSize && pi.groupSize <= maxGroupSize);
-        Assert.assertEquals(numWorkers, pi.workers);
-        Assert.assertTrue(pi.idInGroup >= 0 && pi.idInGroup < maxGroupSize);
-        Assert.assertTrue(pi.groupId >= 0 && pi.groupId < expectedGroups);
+        Assert.assertTrue(pi.getGroupSize() >= groupSize && pi.getGroupSize() <= maxGroupSize);
+        Assert.assertEquals(numWorkers, pi.getWorkers());
+        Assert.assertTrue(pi.getIdInGroup() >= 0 && pi.getIdInGroup() < maxGroupSize);
+        Assert.assertTrue(pi.getGroupId() >= 0 && pi.getGroupId() < expectedGroups);
 
-        Assert.assertFalse(idCombos.contains(pi.groupId + ":" + pi.idInGroup));
-        idCombos.add(pi.groupId + ":" + pi.idInGroup);
+        Assert.assertFalse(idCombos.contains(pi.getGroupId() + ":" + pi.getIdInGroup()));
+        idCombos.add(pi.getGroupId() + ":" + pi.getIdInGroup());
 
-        if (!groupTablets.containsKey(pi.groupId)) {
-          groupTablets.put(pi.groupId, pi.groupsTablets);
+        if (!groupTablets.containsKey(pi.getGroupId())) {
+          groupTablets.put(pi.getGroupId(), pi.getGroupsTablets());
         } else {
-          Assert.assertEquals(groupTablets.get(pi.groupId), pi.groupsTablets);
+          Assert.assertEquals(groupTablets.get(pi.getGroupId()), pi.getGroupsTablets());
         }
       }
 

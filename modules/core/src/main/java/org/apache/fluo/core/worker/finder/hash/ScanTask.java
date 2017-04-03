@@ -39,7 +39,6 @@ import org.apache.fluo.core.util.UtilWaitThread;
 import org.apache.fluo.core.worker.NotificationFinder;
 import org.apache.fluo.core.worker.NotificationProcessor;
 import org.apache.fluo.core.worker.NotificationProcessor.Session;
-import org.apache.fluo.core.worker.finder.hash.ParitionManager.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,7 +92,7 @@ public class ScanTask implements Runnable {
 
         tablets.clear();
         tabletSet.clear();
-        partition.groupsTablets.forEach(t -> {
+        partition.getGroupsTablets().forEach(t -> {
           tablets.add(t);
           tabletSet.add(t);
         });
@@ -176,7 +175,7 @@ public class ScanTask implements Runnable {
     Notification.configureScanner(scanner);
 
     IteratorSetting iterCfg = new IteratorSetting(30, "nhf", NotificationHashFilter.class);
-    NotificationHashFilter.setModulusParams(iterCfg, pi.groupSize, pi.idInGroup);
+    NotificationHashFilter.setModulusParams(iterCfg, pi.getGroupSize(), pi.getIdInGroup());
     scanner.addScanIterator(iterCfg);
 
     int count = 0;

@@ -34,7 +34,6 @@ public class PartitionNotificationFinder implements NotificationFinder {
 
   @Override
   public void init(Environment env, NotificationProcessor processor) {
-    // TODO Auto-generated method stub
     this.processor = processor;
     this.env = env;
     this.stopped = new AtomicBoolean(false);
