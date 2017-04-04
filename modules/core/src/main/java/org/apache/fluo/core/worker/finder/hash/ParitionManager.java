@@ -95,11 +95,10 @@ public class ParitionManager {
     }
   }
 
-  // TODO unit test
   static PartitionInfo getGroupInfo(String me, SortedSet<String> children,
       Collection<TabletRange> tablets, int groupSize) {
 
-    int numGroups = children.size() / groupSize;
+    int numGroups = Math.max(1, children.size() / groupSize);
     int[] groupSizes = new int[numGroups];
     int count = 0;
     int myGroupId = -1;
@@ -115,15 +114,12 @@ public class ParitionManager {
     }
 
 
-    int myGroupSize = groupSizes[myGroupId];
-
     List<TabletRange> tabletsCopy = new ArrayList<>(tablets);
     Collections.sort(tabletsCopy);
 
     // hopefully this shuffles the same on every jvm!. Did try to use hashing to partition the
     // tablets among groups, but it was slightly uneven. One group having a 10% more tablets would
-    // lead to
-    // uneven utilization.
+    // lead to uneven utilization.
     Collections.shuffle(tabletsCopy, new Random(42));
 
     List<TabletRange> groupsTablets = new ArrayList<>();
@@ -136,7 +132,7 @@ public class ParitionManager {
       count = (count + 1) % numGroups;
     }
 
-    return new PartitionInfo(myId, myGroupId, myGroupSize, numGroups, children.size(),
+    return new PartitionInfo(myId, myGroupId, groupSizes[myGroupId], numGroups, children.size(),
         groupsTablets);
   }
 
@@ -293,8 +289,10 @@ public class ParitionManager {
   }
 
   private void setPartitionInfo(PartitionInfo pi) {
+    System.out.println("pi " + pi);
     synchronized (this) {
       if (!Objects.equals(pi, this.partitionInfo)) {
+        System.out.println("Updated finder partition info : " + pi);
         log.debug("Updated finder partition info : " + pi);
         this.paritionSetTime = System.nanoTime();
         this.partitionInfo = pi;

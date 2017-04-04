@@ -37,69 +37,68 @@ public class PartitionManagerTest {
   public void testGrouping() {
     IntFunction<String> nff = i -> String.format("f-%04d", i);
 
-    int numWorkers = 100;
-    int numSplits = 1000;
+    for (int numSplits : new int[] {1, 10, 100, 1000}) {
+      for (int numWorkers : new int[] {1, 5, 10, 11, 100}) {
+        for (int groupSize : new int[] {1, 2, 3, 5, 7, 13, 17, 19, 43, 73, 97}) {
+          int expectedGroups = Math.max(1, numWorkers / groupSize);
+          int maxGroupSize =
+              Math.min(numWorkers,
+                  groupSize + (int) Math.ceil((numWorkers % groupSize) / (double) expectedGroups));
 
-    for (int groupSize : new int[] {1, 2, 3, 5, 7, 13, 17, 19, 43, 73, 97}) {
-      int expectedGroups = numWorkers / groupSize;
-      int maxGroupSize =
-          groupSize + (int) Math.ceil((numWorkers % groupSize) / (double) expectedGroups);
+          TreeSet<String> children = new TreeSet<>();
 
-      TreeSet<String> children = new TreeSet<>();
+          IntStream.range(0, numWorkers).mapToObj(nff).forEach(children::add);
 
-      IntStream.range(0, numWorkers).mapToObj(nff).forEach(children::add);
+          Collection<Bytes> rows =
+              IntStream.iterate(0, i -> i + 1000).limit(numSplits)
+                  .mapToObj(i -> String.format("r%06d", i)).map(Bytes::of).collect(toList());
+          Collection<TabletRange> tablets = TabletRange.toTabletRanges(rows);
 
-      Collection<Bytes> rows =
-          IntStream.iterate(0, i -> i + 1000).limit(numSplits)
-              .mapToObj(i -> String.format("r%06d", i)).map(Bytes::of).collect(toList());
-      Collection<TabletRange> tablets = TabletRange.toTabletRanges(rows);
+          Set<String> idCombos = new HashSet<>();
+          Map<Integer, TabletSet> groupTablets = new HashMap<>();
 
-      Set<String> idCombos = new HashSet<>();
-      Map<Integer, TabletSet> groupTablets = new HashMap<>();
+          for (int i = 0; i < numWorkers; i++) {
+            String me = nff.apply(i);
+            PartitionInfo pi = ParitionManager.getGroupInfo(me, children, tablets, groupSize);
+            Assert.assertEquals(expectedGroups, pi.getGroups());
+            Assert.assertTrue(pi.getGroupSize() >= Math.min(numWorkers, groupSize)
+                && pi.getGroupSize() <= maxGroupSize);
+            Assert.assertEquals(numWorkers, pi.getWorkers());
+            Assert.assertTrue(pi.getIdInGroup() >= 0 && pi.getIdInGroup() < maxGroupSize);
+            Assert.assertTrue(pi.getGroupId() >= 0 && pi.getGroupId() < expectedGroups);
 
-      for (int i = 0; i < numWorkers; i++) {
-        String me = nff.apply(i);
-        PartitionInfo pi = ParitionManager.getGroupInfo(me, children, tablets, groupSize);
-        Assert.assertEquals(expectedGroups, pi.getGroups());
+            Assert.assertFalse(idCombos.contains(pi.getGroupId() + ":" + pi.getIdInGroup()));
+            idCombos.add(pi.getGroupId() + ":" + pi.getIdInGroup());
 
-        Assert.assertTrue(pi.getGroupSize() >= groupSize && pi.getGroupSize() <= maxGroupSize);
-        Assert.assertEquals(numWorkers, pi.getWorkers());
-        Assert.assertTrue(pi.getIdInGroup() >= 0 && pi.getIdInGroup() < maxGroupSize);
-        Assert.assertTrue(pi.getGroupId() >= 0 && pi.getGroupId() < expectedGroups);
+            if (!groupTablets.containsKey(pi.getGroupId())) {
+              groupTablets.put(pi.getGroupId(), pi.getGroupsTablets());
+            } else {
+              Assert.assertEquals(groupTablets.get(pi.getGroupId()), pi.getGroupsTablets());
+            }
+          }
 
-        Assert.assertFalse(idCombos.contains(pi.getGroupId() + ":" + pi.getIdInGroup()));
-        idCombos.add(pi.getGroupId() + ":" + pi.getIdInGroup());
+          Assert.assertEquals(numWorkers, idCombos.size());
 
-        if (!groupTablets.containsKey(pi.getGroupId())) {
-          groupTablets.put(pi.getGroupId(), pi.getGroupsTablets());
-        } else {
-          Assert.assertEquals(groupTablets.get(pi.getGroupId()), pi.getGroupsTablets());
+          // check that the tablets for each group are disjoint and that the union of the tablets
+          // for
+          // each group has all tablets
+          HashSet<TabletRange> allTabletsFromGroups = new HashSet<>();
+
+          for (TabletSet tabletSet : groupTablets.values()) {
+            tabletSet.forEach(tr -> {
+              Assert.assertFalse(allTabletsFromGroups.contains(tr));
+              allTabletsFromGroups.add(tr);
+            });
+          }
+
+          Assert.assertEquals(new HashSet<>(tablets), allTabletsFromGroups);
+
+          // check that all groups have about the same number of tablets
+          IntSummaryStatistics summaryStats =
+              groupTablets.values().stream().mapToInt(TabletSet::size).summaryStatistics();
+          Assert.assertTrue(summaryStats.getMax() - summaryStats.getMin() < 2);
         }
       }
-
-      Assert.assertEquals(numWorkers, idCombos.size());
-
-
-      // check that the tablets for each group are disjoint and that the union of the tablets for
-      // each group has all tablets
-      HashSet<TabletRange> allTabletsFromGroups = new HashSet<>();
-
-      for (TabletSet tabletSet : groupTablets.values()) {
-        tabletSet.forEach(tr -> {
-          Assert.assertFalse(allTabletsFromGroups.contains(tr));
-          allTabletsFromGroups.add(tr);
-        });
-      }
-
-      Assert.assertEquals(new HashSet<>(tablets), allTabletsFromGroups);
-
-      // check that all groups have about the same number of tablets
-      IntSummaryStatistics summaryStats =
-          groupTablets.values().stream().mapToInt(TabletSet::size).summaryStatistics();
-      Assert.assertTrue(summaryStats.getMax() - summaryStats.getMin() < 2);
     }
-
-
-
   }
 }
