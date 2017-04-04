@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
@@ -76,7 +77,7 @@ public class ParitionManager {
 
 
 
-  private static final long STABILIZE_TIME = TimeUnit.SECONDS.toNanos(60);
+  private static final long STABILIZE_TIME = TimeUnit.SECONDS.toMillis(60);
 
   private class FindersListener implements PathChildrenCacheListener {
 
@@ -151,7 +152,7 @@ public class ParitionManager {
       byte[] zkSplitData = null;
       SortedSet<String> children = new TreeSet<>();
       Set<String> groupSizes = new HashSet<>();
-      for (ChildData childData : childrenCache.getCurrentData()) { // TODO ignore splits child
+      for (ChildData childData : childrenCache.getCurrentData()) {
         String node = ZKPaths.getNodeFromPath(childData.getPath());
         if (node.equals("splits")) {
           zkSplitData = childData.getData();
@@ -161,8 +162,6 @@ public class ParitionManager {
         }
       }
 
-      // TODO log ONE info when not finding notifications ... and then log one info when finding
-      // notifications....
       if (zkSplitData == null) {
         log.info("Did not find splits in zookeeper, will retry later.");
         setPartitionInfo(null); // disable this worker from processing notifications
@@ -253,8 +252,7 @@ public class ParitionManager {
           }
         }
       } catch (Exception e) {
-        // TODO log
-        e.printStackTrace();
+        log.warn("Failed to check tablets", e);
       }
     }
   }
@@ -285,7 +283,8 @@ public class ParitionManager {
       schedExecutor =
           Executors.newScheduledThreadPool(1,
               new FluoThreadFactory("Fluo worker partition manager"));
-      schedExecutor.scheduleWithFixedDelay(new CheckTabletsTask(), 0, 5, TimeUnit.MINUTES); // TODO
+      schedExecutor.scheduleWithFixedDelay(new CheckTabletsTask(), 0, maxSleepTime,
+          TimeUnit.MILLISECONDS);
 
       scheduleUpdate();
     } catch (Exception e) {
@@ -295,7 +294,8 @@ public class ParitionManager {
 
   private void setPartitionInfo(PartitionInfo pi) {
     synchronized (this) {
-      if (pi == null || !pi.equals(this.partitionInfo)) {
+      if (!Objects.equals(pi, this.partitionInfo)) {
+        log.debug("Updated finder partition info : " + pi);
         this.paritionSetTime = System.nanoTime();
         this.partitionInfo = pi;
         this.notifyAll();
@@ -305,12 +305,15 @@ public class ParitionManager {
         retrySleepTime = minSleepTime;
       }
     }
-    log.debug("Set partition info : " + pi);
+  }
+
+  private long getTimeSincePartitionChange() {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - paritionSetTime);
   }
 
   synchronized PartitionInfo waitForPartitionInfo() throws InterruptedException {
     while (partitionInfo == null
-        || System.nanoTime() - paritionSetTime < Math.min(maxSleepTime, STABILIZE_TIME)) {
+        || getTimeSincePartitionChange() < Math.min(maxSleepTime, STABILIZE_TIME)) {
       wait(minSleepTime);
     }
 
@@ -318,7 +321,7 @@ public class ParitionManager {
   }
 
   synchronized PartitionInfo getPartitionInfo() {
-    if (System.nanoTime() - paritionSetTime < Math.min(maxSleepTime, STABILIZE_TIME)) {
+    if (getTimeSincePartitionChange() < Math.min(maxSleepTime, STABILIZE_TIME)) {
       return null;
     }
 
@@ -329,18 +332,15 @@ public class ParitionManager {
     try {
       myESNode.close();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.debug("Error closing finder ephemeral node", e);
     }
     try {
       childrenCache.close();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.debug("Error closing finder children cache", e);
     }
 
     schedExecutor.shutdownNow();
-    // TODO wait???
   }
 
   @VisibleForTesting
