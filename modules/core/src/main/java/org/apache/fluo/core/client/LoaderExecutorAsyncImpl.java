@@ -15,6 +15,7 @@
 
 package org.apache.fluo.core.client;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
@@ -62,6 +63,7 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
     Loader loader;
     private AtomicBoolean done = new AtomicBoolean(false);
     private String identity;
+    private CompletableFuture<Loader> compFuture;
 
     private void close() {
       txi = null;
@@ -76,21 +78,29 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
     }
 
 
-    public LoaderCommitObserver(String alias, Loader loader2) {
+    public LoaderCommitObserver(String alias, Loader loader2,
+        CompletableFuture<? extends Loader> compFuture) {
       this.identity = alias;
       this.loader = loader2;
+      this.compFuture = (CompletableFuture<Loader>) compFuture;
     }
 
 
     @Override
     public void committed() {
       close();
+      compFuture.complete(loader);
     }
 
     @Override
     public void failed(Throwable t) {
       close();
-      setException(t);
+      if (compFuture != null) {
+        compFuture.completeExceptionally(t);
+      } else {
+        setException(t);
+      }
+
     }
 
     @Override
@@ -132,7 +142,12 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
         loader.load(txi, context);
         env.getSharedResources().getCommitManager().beginCommit(txi, identity, this);
       } catch (Exception e) {
-        setException(e);
+        if (compFuture != null) {
+          // TODO in another thread pool
+          compFuture.completeExceptionally(e);
+        } else {
+          setException(e);
+        }
         close();
         LoggerFactory.getLogger(LoaderCommitObserver.class).debug(e.getMessage(), e);
       }
@@ -188,9 +203,8 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
     execute(loader.getClass().getSimpleName(), loader);
   }
 
-  @Override
-  public void execute(String alias, Loader loader) {
-    if (exceptionRef.get() != null) {
+  private void execute(String alias, Loader loader, CompletableFuture<? extends Loader> compFuture) {
+    if (compFuture == null && exceptionRef.get() != null) {
       throw new RuntimeException("Previous failure", exceptionRef.get());
     }
 
@@ -206,12 +220,18 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
 
     try {
       commiting.increment();
-      executor.execute(new QueueReleaseRunnable(new LoaderCommitObserver(alias, loader)));
+      executor
+          .execute(new QueueReleaseRunnable(new LoaderCommitObserver(alias, loader, compFuture)));
     } catch (RejectedExecutionException rje) {
       semaphore.release();
       commiting.decrement();
       throw rje;
     }
+  }
+
+  @Override
+  public void execute(String alias, Loader loader) {
+    execute(alias, loader, null);
   }
 
   @Override
@@ -241,5 +261,12 @@ public class LoaderExecutorAsyncImpl implements LoaderExecutor {
       // wait for any async mutations that transactions write to flush
       env.getSharedResources().getBatchWriter().waitForAsyncFlush();
     }
+  }
+
+  @Override
+  public <T extends Loader> CompletableFuture<T> submit(T loader) {
+    CompletableFuture<T> cf = new CompletableFuture<>();
+    execute(loader.getClass().getSimpleName(), loader, cf);
+    return cf;
   }
 }

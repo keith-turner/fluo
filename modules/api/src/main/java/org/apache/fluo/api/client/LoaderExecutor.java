@@ -15,6 +15,8 @@
 
 package org.apache.fluo.api.client;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Executes provided {@link Loader} objects to load data into Fluo. {@link LoaderExecutor#close()}
  * should be called when finished.
@@ -33,7 +35,7 @@ public interface LoaderExecutor extends AutoCloseable {
    * Same as {@link #execute(Loader)}, but allows specifing an identity. The identity is used in
    * metrics and trace logging. When an identity is not supplied, the class name is used. In the
    * case of lambdas the class name may not be the same in different processes.
-   * 
+   *
    * @since 1.1.0
    */
   void execute(String identity, Loader loader);
@@ -43,4 +45,10 @@ public interface LoaderExecutor extends AutoCloseable {
    */
   @Override
   void close();
+
+
+  /**
+   * @since 1.1.0
+   */
+  <T extends Loader> CompletableFuture<T> submit(T loader);
 }

@@ -15,8 +15,13 @@
 
 package org.apache.fluo.integration.client;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 import org.apache.fluo.api.client.Loader;
 import org.apache.fluo.api.client.LoaderExecutor;
+import org.apache.fluo.api.client.Snapshot;
 import org.apache.fluo.api.client.TransactionBase;
 import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.exceptions.AlreadySetException;
@@ -47,6 +52,41 @@ public class LoaderExecutorIT extends ITBaseMini {
       Assert.fail();
     } catch (RuntimeException e) {
       Assert.assertEquals(AlreadySetException.class, e.getCause().getClass());
+    }
+  }
+
+  private static void increment(TransactionBase tx, Loader.Context context) {
+    int c = Integer.parseInt(tx.gets("datum90", new Column("info", "count"), "0")) + 1;
+    tx.set("datum90", new Column("info", "count"), c + "");
+  }
+
+  @Test
+  public void testSubmit() {
+    try (LoaderExecutor le = client.newLoaderExecutor()) {
+
+      List<CompletableFuture<?>> futures = new ArrayList<>();
+
+      for (int i = 0; i < 10; i++) {
+        futures.add(le.submit(LoaderExecutorIT::increment));
+      }
+
+      futures.forEach(f -> f.join());
+
+      try (Snapshot snap = client.newSnapshot()) {
+        Assert.assertEquals("10", snap.gets("datum90", new Column("info", "count")));
+      }
+
+      futures.clear();
+
+      for (int i = 0; i < 10; i++) {
+        futures.add(le.submit(LoaderExecutorIT::increment));
+      }
+
+      futures.forEach(f -> f.join());
+
+      try (Snapshot snap = client.newSnapshot()) {
+        Assert.assertEquals("20", snap.gets("datum90", new Column("info", "count")));
+      }
     }
   }
 }
