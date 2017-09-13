@@ -22,6 +22,7 @@ import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.NotificationUtil;
+import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
@@ -104,6 +105,15 @@ public class FluoFormatter {
       if ((ts & ColumnConstants.PREFIX_MASK) == ColumnConstants.ACK_PREFIX) {
         type = "ACK";
       }
+      if ((ts & ColumnConstants.PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
+        if (ReadLockUtil.isDelete(ts)) {
+          type = "DEL_RLOCK";
+        } else {
+          type = "RLOCK";
+        }
+        ts = ReadLockUtil.decodeTs(ts);
+      }
+
 
       StringBuilder sb = new StringBuilder();
 

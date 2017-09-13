@@ -238,4 +238,58 @@ public class PrewriteIteratorTest {
     output = new TestData(newPI(input, 117), Range.exact("0", "f", "q"));
     Assert.assertEquals(0, output.data.size());
   }
+
+  @Test
+  public void testReadLockPreventsWriteLock() {
+    TestData input = new TestData();
+
+    input.add("0 f q RLOCK 42", "0 f q");
+
+    TestData expected = new TestData();
+    expected.add("0 f q RLOCK 42", "0 f q");
+
+    for (int ts : new int[] {40, 45}) {
+      TestData output = new TestData(newPI(input, ts), Range.exact("0", "f", "q"));
+      Assert.assertEquals(expected, output);
+    }
+
+    input.add("0 f q DEL_RLOCK 42", "50");
+
+    expected = new TestData();
+    expected.add("0 f q DEL_RLOCK 42", "50");
+
+    for (int ts : new int[] {40, 45}) {
+      TestData output = new TestData(newPI(input, ts), Range.exact("0", "f", "q"));
+      Assert.assertEquals(expected, output);
+    }
+
+    TestData output = new TestData(newPI(input, 117), Range.exact("0", "f", "q"));
+    Assert.assertEquals(0, output.data.size());
+
+    input.add("0 f q RLOCK 30", "0 f q");
+
+    expected = new TestData();
+    expected.add("0 f q RLOCK 30", "0 f q");
+
+    output = new TestData(newPI(input, 117), Range.exact("0", "f", "q"));
+    Assert.assertEquals(expected, output);
+
+    input.add("0 f q DEL_RLOCK 30", "60");
+
+    output = new TestData(newPI(input, 117), Range.exact("0", "f", "q"));
+    Assert.assertEquals(0, output.data.size());
+
+    output = new TestData(newPI(input, 55), Range.exact("0", "f", "q"));
+    expected = new TestData();
+    expected.add("0 f q DEL_RLOCK 30", "60");
+    Assert.assertEquals(expected, output);
+
+    expected = new TestData();
+    expected.add("0 f q DEL_RLOCK 42", "50");
+
+    for (int ts : new int[] {20, 40, 45}) {
+      output = new TestData(newPI(input, ts), Range.exact("0", "f", "q"));
+      Assert.assertEquals(expected, output);
+    }
+  }
 }

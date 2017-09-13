@@ -29,7 +29,9 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.fluo.accumulo.format.FluoFormatter;
 import org.apache.fluo.accumulo.util.ColumnConstants;
+import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
+import org.apache.fluo.accumulo.values.DelReadLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
 import org.apache.fluo.api.data.Bytes;
@@ -100,9 +102,8 @@ public class TestData {
       case "LOCK":
         ts |= ColumnConstants.LOCK_PREFIX;
         String rc[] = value.split("\\s+");
-        val =
-            LockValue.encode(Bytes.of(rc[0]), new Column(rc[1], rc[2]), value.contains("WRITE"),
-                value.contains("DELETE"), value.contains("TRIGGER"), 42l);
+        val = LockValue.encode(Bytes.of(rc[0]), new Column(rc[1], rc[2]), value.contains("WRITE"),
+            value.contains("DELETE"), value.contains("TRIGGER"), 42l);
         break;
       case "DATA":
         ts |= ColumnConstants.DATA_PREFIX;
@@ -116,6 +117,17 @@ public class TestData {
           long commitTs = Long.parseLong(value.split("\\s+")[0]);
           val = DelLockValue.encodeCommit(commitTs, value.contains("PRIMARY"));
         }
+        break;
+      case "RLOCK":
+        ts = ReadLockUtil.encodeTs(ts, false);
+        ts |= ColumnConstants.RLOCK_PREFIX;
+        break;
+      case "DEL_RLOCK":
+        ts = ReadLockUtil.encodeTs(ts, true);
+        ts |= ColumnConstants.RLOCK_PREFIX;
+        long commitTs = Long.parseLong(value.split("\\s+")[0]);
+        val = DelReadLockValue.encode(commitTs,
+            value.contains("ROLLBACK") || value.contains("ABORT"));
         break;
       case "ntfy":
         break;

@@ -28,6 +28,8 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.IteratorEnvironment;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
+import org.apache.fluo.accumulo.util.ReadLockUtil;
+import org.apache.fluo.accumulo.values.DelReadLockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
 
 /**
@@ -107,8 +109,8 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
     hasTop = false;
     long invalidationTime = -1;
 
-    while (source.hasTop()
-        && seekRange.getStartKey().equals(source.getTopKey(), PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
+    while (source.hasTop() && seekRange.getStartKey().equals(source.getTopKey(),
+        PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
 
       long colType = source.getTopKey().getTimestamp() & ColumnConstants.PREFIX_MASK;
       long ts = source.getTopKey().getTimestamp() & ColumnConstants.TIMESTAMP_MASK;
@@ -131,6 +133,7 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
 
         source.skipToPrefix(seekRange.getStartKey(), ColumnConstants.DEL_LOCK_PREFIX);
       } else if (colType == ColumnConstants.DEL_LOCK_PREFIX) {
+        // TODO may be able to process rollback differently!
         if (ts > invalidationTime) {
           invalidationTime = ts;
 
@@ -140,7 +143,50 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
           }
         }
 
+        // TODO jump to RLOCK
         source.skipToPrefix(seekRange.getStartKey(), ColumnConstants.LOCK_PREFIX);
+
+      } else if (colType == ColumnConstants.RLOCK_PREFIX) {
+
+        long lastDeleteTs = -1;
+        long rlts = ReadLockUtil.decodeTs(ts);
+
+        while (rlts > invalidationTime && colType == ColumnConstants.RLOCK_PREFIX) {
+          if (ReadLockUtil.isDelete(ts)) {
+            // TODO consider rollback
+            if (rlts >= snaptime) {
+              hasTop = true;
+              return;
+            } else {
+              long rlockCommitTs = DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+              if (rlockCommitTs > snaptime) {
+                hasTop = true;
+                return;
+              }
+            }
+
+            lastDeleteTs = rlts;
+          } else {
+            if (rlts != lastDeleteTs) {
+              // this read lock is active
+              hasTop = true;
+              return;
+            }
+          }
+
+          source.next();
+          if (source.hasTop()) {
+            colType = source.getTopKey().getTimestamp() & ColumnConstants.PREFIX_MASK;
+            ts = source.getTopKey().getTimestamp() & ColumnConstants.TIMESTAMP_MASK;
+            rlts = ReadLockUtil.decodeTs(ts);
+          } else {
+            break;
+          }
+        }
+
+        if (source.hasTop() && (colType == ColumnConstants.RLOCK_PREFIX)) {
+          source.skipToPrefix(seekRange.getStartKey(), ColumnConstants.LOCK_PREFIX);
+        }
       } else if (colType == ColumnConstants.LOCK_PREFIX) {
         if (ts > invalidationTime) {
           // nothing supersedes this lock, therefore the column is locked

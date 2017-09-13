@@ -20,21 +20,22 @@ import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.exceptions.AlreadySetException;
 
 /**
- * This class provides default implementations for many of the methods in TransactionBase. It exists
- * to make implementing TransactionBase easier.
+ * This class provides default implementations for many of the methods in TransactionBase. It exists to make implementing TransactionBase easier.
  */
 
-public abstract class AbstractTransactionBase extends AbstractSnapshotBase implements
-    TransactionBase {
+public abstract class AbstractTransactionBase extends AbstractSnapshotBase implements TransactionBase {
 
+  @Override
   public void delete(CharSequence row, Column col) {
     delete(s2bConv(row), col);
   }
 
+  @Override
   public void set(CharSequence row, Column col, CharSequence value) throws AlreadySetException {
     set(s2bConv(row), col, Bytes.of(value));
   }
 
+  @Override
   public void setWeakNotification(CharSequence row, Column col) {
     setWeakNotification(s2bConv(row), col);
   }
