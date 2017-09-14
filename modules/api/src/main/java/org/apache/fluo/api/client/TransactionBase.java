@@ -20,8 +20,8 @@ import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.exceptions.AlreadySetException;
 
 /**
- * Enables users to read and write to a Fluo table at certain point in time. TransactionBase extends {@link SnapshotBase} to include methods for writing to
- * Fluo.
+ * Enables users to read and write to a Fluo table at certain point in time. TransactionBase extends
+ * {@link SnapshotBase} to include methods for writing to Fluo.
  *
  * @since 1.0.0
  * @see AbstractTransactionBase
@@ -34,7 +34,8 @@ public interface TransactionBase extends SnapshotBase {
   void delete(Bytes row, Column col);
 
   /**
-   * Wrapper for {@link #delete(Bytes, Column)} that uses Strings. All String are encoded using UTF-8.
+   * Wrapper for {@link #delete(Bytes, Column)} that uses Strings. All String are encoded using
+   * UTF-8.
    */
   void delete(CharSequence row, Column col);
 
@@ -44,7 +45,8 @@ public interface TransactionBase extends SnapshotBase {
   void set(Bytes row, Column col, Bytes value) throws AlreadySetException;
 
   /**
-   * Wrapper for {@link #set(Bytes, Column, Bytes)} that uses Strings. All String are encoded using UTF-8.
+   * Wrapper for {@link #set(Bytes, Column, Bytes)} that uses Strings. All String are encoded using
+   * UTF-8.
    */
   void set(CharSequence row, Column col, CharSequence value) throws AlreadySetException;
 
@@ -54,7 +56,8 @@ public interface TransactionBase extends SnapshotBase {
   void setWeakNotification(Bytes row, Column col);
 
   /**
-   * Wrapper for {@link #setWeakNotification(Bytes, Column)} that uses Strings. All String are encoded using UTF-8.
+   * Wrapper for {@link #setWeakNotification(Bytes, Column)} that uses Strings. All String are
+   * encoded using UTF-8.
    */
   void setWeakNotification(CharSequence row, Column col);
 

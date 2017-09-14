@@ -243,8 +243,10 @@ public class LockResolver {
       Column col = SpanUtil.toRowColumn(entry.getKey()).getColumn();
 
       LockValue lv = new LockValue(entry.getValue().get());
-      ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(), lockTs,
-          commitTs, env.getConfiguredObservers().getObservedColumns(STRONG), mut);
+      boolean isReadlock = false; // TODO figure this out
+      ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(),
+          isReadlock, lockTs, commitTs, env.getConfiguredObservers().getObservedColumns(STRONG),
+          mut);
     }
 
   }

@@ -51,8 +51,10 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.fluo.accumulo.iterators.PrewriteIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
+import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
+import org.apache.fluo.accumulo.values.ReadLockValue;
 import org.apache.fluo.api.client.AbstractTransactionBase;
 import org.apache.fluo.api.client.Snapshot;
 import org.apache.fluo.api.client.scanner.ScannerBuilder;
@@ -88,15 +90,15 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
   public static final byte[] EMPTY = new byte[0];
   public static final Bytes EMPTY_BS = Bytes.of(EMPTY);
-  private static final Bytes DELETE =
-      Bytes.of("special delete object f804266bf94935edd45ae3e6c287b93c1814295c");
-  private static final Bytes NTFY_VAL =
-      Bytes.of("special ntfy value ce0c523e6e4dc093be8a2736b82eca1b95f97ed4");
-  private static final Bytes RLOCK_VAL =
-      Bytes.of("special rlock value 94da84e7796ff3b23b779805d820a33f1997cb8b");
+  private static final Bytes DELETE = Bytes
+      .of("special delete object f804266bf94935edd45ae3e6c287b93c1814295c");
+  private static final Bytes NTFY_VAL = Bytes
+      .of("special ntfy value ce0c523e6e4dc093be8a2736b82eca1b95f97ed4");
+  private static final Bytes RLOCK_VAL = Bytes
+      .of("special rlock value 94da84e7796ff3b23b779805d820a33f1997cb8b");
 
   private static boolean isWrite(Bytes val) {
-    return val != NTFY_VAL;
+    return val != NTFY_VAL && val != RLOCK_VAL;
   }
 
   private static boolean isDelete(Bytes val) {
@@ -366,6 +368,10 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       PrewriteIterator.enableAckCheck(iterConf, notification.getTimestamp());
     }
 
+    if (isReadLock(val)) {
+      PrewriteIterator.setReadlock(iterConf);
+    }
+
     Condition cond = new FluoCondition(env, col).setIterators(iterConf);
 
     if (cm == null) {
@@ -374,12 +380,17 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       cm.addCondition(cond);
     }
 
-    if (isWrite(val) && !isDelete(val) && !isReadLock(val)) {
+    if (isWrite(val) && !isDelete(val)) {
       cm.put(col, ColumnConstants.DATA_PREFIX | startTs, val.toArray());
     }
 
-    cm.put(col, ColumnConstants.LOCK_PREFIX | startTs, LockValue.encode(primaryRow, primaryColumn,
-        isWrite(val), isDelete(val), isTriggerRow, isReadLock(val), getTransactorID()));
+    if (isReadLock(val)) {
+      cm.put(col, ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(startTs, false),
+          ReadLockValue.encode(primaryRow, primaryColumn, getTransactorID()));
+    } else {
+      cm.put(col, ColumnConstants.LOCK_PREFIX | startTs, LockValue.encode(primaryRow,
+          primaryColumn, isWrite(val), isDelete(val), isTriggerRow, getTransactorID()));
+    }
 
     return cm;
   }
@@ -549,14 +560,15 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
       for (ColumnUpdate cu : updates) {
         // TODO avoid create col vis object
-        Column col = new Column(Bytes.of(cu.getColumnFamily()), Bytes.of(cu.getColumnQualifier()),
-            Bytes.of(cu.getColumnVisibility()));
+        Column col =
+            new Column(Bytes.of(cu.getColumnFamily()), Bytes.of(cu.getColumnQualifier()),
+                Bytes.of(cu.getColumnVisibility()));
 
         if (notification.getColumn().equals(col)) {
           // check to see if ACK exist after notification
           Key startKey = SpanUtil.toKey(notification.getRowColumn());
-          startKey.setTimestamp(
-              ColumnConstants.ACK_PREFIX | (Long.MAX_VALUE & ColumnConstants.TIMESTAMP_MASK));
+          startKey.setTimestamp(ColumnConstants.ACK_PREFIX
+              | (Long.MAX_VALUE & ColumnConstants.TIMESTAMP_MASK));
 
           Key endKey = SpanUtil.toKey(notification.getRowColumn());
           endKey.setTimestamp(ColumnConstants.ACK_PREFIX | (notification.getTimestamp() + 1));
@@ -797,8 +809,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     }
   }
 
-  private void beginCommitAsync(CommitData cd, AsyncCommitObserver commitCallback,
-      RowColumn primary) {
+  private void beginCommitAsync(CommitData cd, AsyncCommitObserver commitCallback, RowColumn primary) {
 
     if (updates.size() == 0) {
       // TODO do async
@@ -811,8 +822,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       stats.incrementEntriesSet(cols.size());
     }
 
-    Bytes primRow;
-    Column primCol;
+    Bytes primRow = null;
+    Column primCol = null;
 
     if (primary != null) {
       primRow = primary.getRow();
@@ -824,10 +835,20 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       primRow = notification.getRow();
       primCol = notification.getColumn();
     } else {
-      // TODO choose non read lock?
-      primRow = updates.keySet().iterator().next();
-      Map<Column, Bytes> colSet = updates.get(primRow);
-      primCol = colSet.keySet().iterator().next();
+
+      outer: for (Entry<Bytes, Map<Column, Bytes>> entry : updates.entrySet()) {
+        for (Entry<Column, Bytes> entry2 : entry.getValue().entrySet()) {
+          if (!isReadLock(entry2.getValue())) {
+            primRow = entry.getKey();
+            primCol = entry2.getKey();
+            break outer;
+          }
+        }
+      }
+
+      if (primRow == null) {
+        // TODO nothing to do??? only read locks
+      }
     }
 
     // get a primary column
@@ -890,8 +911,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
           break;
         case COMMITTED:
         default:
-          throw new IllegalStateException(
-              "unexpected tx state " + txInfo.status + " " + cd.prow + " " + cd.pcol);
+          throw new IllegalStateException("unexpected tx state " + txInfo.status + " " + cd.prow
+              + " " + cd.pcol);
 
       }
     }
@@ -920,8 +941,9 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
       for (Entry<Column, Bytes> colUpdates : rowUpdates.getValue().entrySet()) {
         if (cm == null) {
-          cm = prewrite(rowUpdates.getKey(), colUpdates.getKey(), colUpdates.getValue(), cd.prow,
-              cd.pcol, false);
+          cm =
+              prewrite(rowUpdates.getKey(), colUpdates.getKey(), colUpdates.getValue(), cd.prow,
+                  cd.pcol, false);
         } else {
           prewrite(cm, colUpdates.getKey(), colUpdates.getValue(), cd.prow, cd.pcol, false);
         }
@@ -1098,12 +1120,13 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     boolean isTrigger = isTriggerRow(cd.prow) && cd.pcol.equals(notification.getColumn());
 
     Condition lockCheck =
-        new FluoCondition(env, cd.pcol).setIterators(iterConf).setValue(LockValue.encode(cd.prow,
-            cd.pcol, isWrite(cd.pval), isDelete(cd.pval), isTrigger, getTransactorID()));
+        new FluoCondition(env, cd.pcol).setIterators(iterConf).setValue(
+            LockValue.encode(cd.prow, cd.pcol, isWrite(cd.pval), isDelete(cd.pval), isTrigger,
+                getTransactorID()));
     final ConditionalMutation delLockMutation = new ConditionalFlutation(env, cd.prow, lockCheck);
 
     ColumnUtil.commitColumn(env, isTrigger, true, cd.pcol, isWrite(cd.pval), isDelete(cd.pval),
-        startTs, commitTs, observedColumns, delLockMutation);
+        isReadLock(cd.pval), startTs, commitTs, observedColumns, delLockMutation);
 
     ListenableFuture<Iterator<Result>> future =
         cd.acw.apply(Collections.singletonList(delLockMutation));
@@ -1136,8 +1159,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
             switch (txInfo.status) {
               case COMMITTED:
                 if (txInfo.commitTs != commitTs) {
-                  throw new IllegalStateException(
-                      cd.prow + " " + cd.pcol + " " + txInfo.commitTs + "!=" + commitTs);
+                  throw new IllegalStateException(cd.prow + " " + cd.pcol + " " + txInfo.commitTs
+                      + "!=" + commitTs);
                 }
                 ms = Status.ACCEPTED;
                 break;
@@ -1183,7 +1206,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
         ColumnUtil.commitColumn(env,
             isTriggerRow && colUpdates.getKey().equals(notification.getColumn()), false,
             colUpdates.getKey(), isWrite(colUpdates.getValue()), isDelete(colUpdates.getValue()),
-            startTs, commitTs, observedColumns, m);
+            isReadLock(colUpdates.getValue()), startTs, commitTs, observedColumns, m);
       }
 
       mutations.add(m);
@@ -1201,8 +1224,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   }
 
   @VisibleForTesting
-  public boolean finishCommit(CommitData cd, Stamp commitStamp)
-      throws TableNotFoundException, MutationsRejectedException {
+  public boolean finishCommit(CommitData cd, Stamp commitStamp) throws TableNotFoundException,
+      MutationsRejectedException {
     deleteLocks(cd, commitStamp.getTxTimestamp());
     return true;
   }

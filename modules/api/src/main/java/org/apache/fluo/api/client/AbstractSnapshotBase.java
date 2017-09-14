@@ -32,20 +32,23 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
 /**
- * This class provides default implementations for many of the classes in SnapshotBase. It exists to make implementing SnapshotBase easier.
+ * This class provides default implementations for many of the classes in SnapshotBase. It exists to
+ * make implementing SnapshotBase easier.
  */
 
 public abstract class AbstractSnapshotBase implements SnapshotBase {
 
   /*
-   * This map of String to Bytes is really only useful when user code is executing a transactions. Once a transaction is queued for commit, do not want this map
-   * to eat up memory. Thats why a weak map is used.
+   * This map of String to Bytes is really only useful when user code is executing a transactions.
+   * Once a transaction is queued for commit, do not want this map to eat up memory. Thats why a
+   * weak map is used.
    * 
-   * There is intentionally no reverse map from Bytes to String. Relying on two things for this. First, Bytes maintains a weak pointer to the string it was
-   * created with and returns this for toString(). Second, the actual Transaction implementation will under some circumstances return the Bytes object that was
-   * passed in.
+   * There is intentionally no reverse map from Bytes to String. Relying on two things for this.
+   * First, Bytes maintains a weak pointer to the string it was created with and returns this for
+   * toString(). Second, the actual Transaction implementation will under some circumstances return
+   * the Bytes object that was passed in.
    */
-  private Map<String,Bytes> s2bCache = new WeakHashMap<String,Bytes>();
+  private Map<String, Bytes> s2bCache = new WeakHashMap<String, Bytes>();
 
   public AbstractSnapshotBase() {}
 
@@ -82,34 +85,36 @@ public abstract class AbstractSnapshotBase implements SnapshotBase {
   }
 
   @Override
-  public Map<Column,Bytes> get(Bytes row, Column... columns) {
+  public Map<Column, Bytes> get(Bytes row, Column... columns) {
     return get(row, ImmutableSet.copyOf(columns));
   }
 
   @Override
-  public Map<Bytes,Map<Column,Bytes>> get(Collection<Bytes> rows, Column... columns) {
+  public Map<Bytes, Map<Column, Bytes>> get(Collection<Bytes> rows, Column... columns) {
     return get(rows, ImmutableSet.copyOf(columns));
   }
 
   @Override
-  public Map<RowColumn,String> gets(Collection<RowColumn> rowColumns) {
-    Map<RowColumn,Bytes> bytesMap = get(rowColumns);
+  public Map<RowColumn, String> gets(Collection<RowColumn> rowColumns) {
+    Map<RowColumn, Bytes> bytesMap = get(rowColumns);
     return Maps.transformValues(bytesMap, b -> b.toString());
   }
 
   @Override
-  public Map<String,Map<Column,String>> gets(Collection<? extends CharSequence> rows, Set<Column> columns) {
-    Map<Bytes,Map<Column,Bytes>> rcvs = get(Collections2.transform(rows, this::s2bConv), columns);
-    Map<String,Map<Column,String>> ret = new HashMap<>(rcvs.size());
+  public Map<String, Map<Column, String>> gets(Collection<? extends CharSequence> rows,
+      Set<Column> columns) {
+    Map<Bytes, Map<Column, Bytes>> rcvs = get(Collections2.transform(rows, this::s2bConv), columns);
+    Map<String, Map<Column, String>> ret = new HashMap<>(rcvs.size());
 
-    for (Entry<Bytes,Map<Column,Bytes>> entry : rcvs.entrySet()) {
+    for (Entry<Bytes, Map<Column, Bytes>> entry : rcvs.entrySet()) {
       ret.put(entry.getKey().toString(), Maps.transformValues(entry.getValue(), b -> b.toString()));
     }
     return ret;
   }
 
   @Override
-  public Map<String,Map<Column,String>> gets(Collection<? extends CharSequence> rows, Column... columns) {
+  public Map<String, Map<Column, String>> gets(Collection<? extends CharSequence> rows,
+      Column... columns) {
     return gets(rows, ImmutableSet.copyOf(columns));
   }
 
@@ -133,13 +138,13 @@ public abstract class AbstractSnapshotBase implements SnapshotBase {
   }
 
   @Override
-  public Map<Column,String> gets(CharSequence row, Set<Column> columns) {
-    Map<Column,Bytes> values = get(s2bConv(row), columns);
+  public Map<Column, String> gets(CharSequence row, Set<Column> columns) {
+    Map<Column, Bytes> values = get(s2bConv(row), columns);
     return Maps.transformValues(values, b -> b.toString());
   }
 
   @Override
-  public Map<Column,String> gets(CharSequence row, Column... columns) {
+  public Map<Column, String> gets(CharSequence row, Column... columns) {
     return gets(row, ImmutableSet.copyOf(columns));
   }
 }

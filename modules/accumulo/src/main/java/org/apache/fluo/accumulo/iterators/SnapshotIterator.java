@@ -91,6 +91,10 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
           }
           source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
           continue;
+
+        } else if (colType == ColumnConstants.RLOCK_PREFIX) {
+          source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
+          continue;
         } else if (colType == ColumnConstants.LOCK_PREFIX) {
           if (ts > invalidationTime && ts <= snaptime) {
             // nothing supersedes this lock, therefore the column is locked
