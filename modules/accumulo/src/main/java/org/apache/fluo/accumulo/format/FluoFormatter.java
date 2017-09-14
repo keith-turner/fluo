@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -24,7 +24,9 @@ import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.NotificationUtil;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
+import org.apache.fluo.accumulo.values.DelReadLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
+import org.apache.fluo.accumulo.values.ReadLockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
@@ -125,6 +127,10 @@ public class FluoFormatter {
       } else if (type.equals("LOCK")) {
         // TODO can Value be made to extend Bytes w/o breaking API?
         val = new LockValue(entry.getValue().get()).toString();
+      } else if (type.equals("RLOCK")) {
+        val = new ReadLockValue(entry.getValue().get()).toString();
+      } else if(type.equals("DEL_RLOCK")) {
+        val = new DelReadLockValue(entry.getValue().get()).toString();
       } else {
         encNonAscii(sb, entry.getValue().get());
         val = sb.toString();
