@@ -34,7 +34,11 @@ import org.apache.fluo.integration.TestTransaction;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static java.util.Arrays.asList;
+
 public class ReadLockIT extends ITBaseImpl {
+
+  private static final Column ALIAS_COL = new Column("node", "alias");
 
   private void addEdge(String node1, String node2) {
     try (Transaction tx = client.newTransaction()) {
@@ -44,8 +48,12 @@ public class ReadLockIT extends ITBaseImpl {
   }
 
   private void addEdge(TransactionBase tx, String node1, String node2) {
-    String alias1 = tx.withReadLock().gets("r:" + node1, new Column("node", "alias"));
-    String alias2 = tx.withReadLock().gets("r:" + node2, new Column("node", "alias"));
+    Map<String, Map<Column, String>> aliases =
+        tx.withReadLock().gets(asList("r:" + node1, "r:" + node2), ALIAS_COL); // TODO need to test
+                                                                               // all get
+                                                                               // methods
+    String alias1 = aliases.get("r:" + node1).get(ALIAS_COL);
+    String alias2 = aliases.get("r:" + node1).get(ALIAS_COL);
 
     addEdge(tx, node1, node2, alias1, alias2);
   }
@@ -92,8 +100,7 @@ public class ReadLockIT extends ITBaseImpl {
 
 
     TestTransaction tx1 = new TestTransaction(env);
-    tx1.set("node2", new Column("node", "alias"), "jojo");
-
+    setAlias(tx1, "node2", "jojo");
 
     TestTransaction tx2 = new TestTransaction(env);
     TestTransaction tx3 = new TestTransaction(env);
@@ -111,12 +118,10 @@ public class ReadLockIT extends ITBaseImpl {
 
     try {
       tx1.commit();
+      Assert.fail("Expected exception");
     } catch (CommitException ce) {
       // ce.printStackTrace();
     }
-
-
-
   }
 
   @Test
@@ -142,11 +147,10 @@ public class ReadLockIT extends ITBaseImpl {
 
     try {
       tx2.commit();
+      Assert.fail("Expected exception");
     } catch (CommitException ce) {
       // ce.printStackTrace();
     }
-
-
   }
 
   private void dumpTable() throws TableNotFoundException {

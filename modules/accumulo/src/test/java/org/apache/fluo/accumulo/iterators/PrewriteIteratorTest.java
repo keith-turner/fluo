@@ -21,7 +21,6 @@ import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.iterators.IteratorEnvironment;
 import org.apache.accumulo.core.iterators.IteratorUtil.IteratorScope;
-import org.apache.accumulo.core.iterators.SortedMapIterator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,7 +37,7 @@ public class PrewriteIteratorTest {
       if (readlock) {
         PrewriteIterator.setReadlock(cfg);
       }
-      ni.init(new SortedMapIterator(input.data), cfg.getOptions(), env);
+      ni.init(input.getIterator(), cfg.getOptions(), env);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -53,7 +52,7 @@ public class PrewriteIteratorTest {
     try {
       IteratorSetting cfg = new IteratorSetting(10, PrewriteIterator.class);
       PrewriteIterator.setSnaptime(cfg, snapTime);
-      ni.init(new SortedMapIterator(input.data), cfg.getOptions(), env);
+      ni.init(input.getIterator(), cfg.getOptions(), env);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -69,7 +68,7 @@ public class PrewriteIteratorTest {
       IteratorSetting cfg = new IteratorSetting(10, PrewriteIterator.class);
       PrewriteIterator.setSnaptime(cfg, snapTime);
       PrewriteIterator.enableAckCheck(cfg, ntfyTime);
-      ni.init(new SortedMapIterator(input.data), cfg.getOptions(), env);
+      ni.init(input.getIterator(), cfg.getOptions(), env);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -363,5 +362,39 @@ public class PrewriteIteratorTest {
       output = new TestData(newPI(input, 4, true), Range.exact("0", "f", "q"));
       Assert.assertEquals(expected, output);
     }
+  }
+
+  @Test
+  public void testManyReadLocks() {
+    TestData input = new TestData();
+
+    input.add("0 f q WRITE 10", "5");
+    input.add("0 f q DATA 5", "15");
+
+    for (int i = 10; i < 2010; i += 2) {
+      input.add("0 f q DEL_RLOCK " + i, "" + (i + 1));
+      input.add("0 f q RLOCK " + i, "0 f q");
+    }
+
+    TestData output = new TestData(newPI(input, 3000, false), Range.exact("0", "f", "q"));
+    // scans all read locks looking for and active lock
+    Assert.assertEquals(2001, input.counter.nextCalls);
+    // TODO check output
+
+    input.counter.reset();
+    output = new TestData(newPI(input, 3000, true), Range.exact("0", "f", "q"));
+    // read locks should not scan everything looking for a read lock
+    Assert.assertEquals(12, input.counter.nextCalls); // TODO why 12?
+    // TODO check output
+
+
+    input.add("0 f q WRITE 2500", "2490");
+    input.add("0 f q DATA 2490", "16");
+    input.counter.reset();
+    output = new TestData(newPI(input, 3000, false), Range.exact("0", "f", "q"));
+    Assert.assertEquals(13, input.counter.nextCalls); // TODO why 13?
+
+    // TODO check output
+
   }
 }
