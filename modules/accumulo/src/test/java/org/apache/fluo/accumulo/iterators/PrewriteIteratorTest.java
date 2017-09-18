@@ -377,24 +377,24 @@ public class PrewriteIteratorTest {
     }
 
     TestData output = new TestData(newPI(input, 3000, false), Range.exact("0", "f", "q"));
-    // scans all read locks looking for and active lock
+    // scans all read locks looking for an active lock
     Assert.assertEquals(2001, input.counter.nextCalls);
-    // TODO check output
+    Assert.assertEquals(0, output.data.size());
 
+    // read locks do not need to scan for other read locks... this checks that read locks are
+    // skipped
     input.counter.reset();
     output = new TestData(newPI(input, 3000, true), Range.exact("0", "f", "q"));
     // read locks should not scan everything looking for a read lock
-    Assert.assertEquals(12, input.counter.nextCalls); // TODO why 12?
-    // TODO check output
+    Assert.assertEquals(12, input.counter.nextCalls); // skipping will read 11 before seeking
+    Assert.assertEquals(0, output.data.size());
 
-
+    // This write invalidates the 2000 read locks, so should skip read locks
     input.add("0 f q WRITE 2500", "2490");
     input.add("0 f q DATA 2490", "16");
     input.counter.reset();
     output = new TestData(newPI(input, 3000, false), Range.exact("0", "f", "q"));
-    Assert.assertEquals(13, input.counter.nextCalls); // TODO why 13?
-
-    // TODO check output
-
+    Assert.assertEquals(13, input.counter.nextCalls);
+    Assert.assertEquals(0, output.data.size());
   }
 }
