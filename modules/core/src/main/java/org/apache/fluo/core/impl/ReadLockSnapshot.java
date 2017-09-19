@@ -30,6 +30,8 @@ public class ReadLockSnapshot extends AbstractSnapshotBase implements SnapshotBa
 
   private TransactionImpl txi;
 
+  // TODO possibly pass down the fact that we do not need to obtain read lock info
+
   ReadLockSnapshot(TransactionImpl txi) {
     super(txi);
     this.txi = txi;

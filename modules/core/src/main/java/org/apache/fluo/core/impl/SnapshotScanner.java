@@ -49,10 +49,12 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
   public static final class Opts {
     private final Span span;
     private final Collection<Column> columns;
+    private final boolean showReadLocks;
 
-    public Opts(Span span, Collection<Column> columns) {
+    public Opts(Span span, Collection<Column> columns, boolean showReadLocks) {
       this.span = span;
       this.columns = ImmutableSet.copyOf(columns);
+      this.showReadLocks = showReadLocks;
     }
 
     public Span getSpan() {
@@ -61,6 +63,10 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
 
     public Collection<Column> getColumns() {
       return columns;
+    }
+
+    public boolean getShowReadLocks() {
+      return showReadLocks;
     }
   }
 
@@ -75,7 +81,8 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
 
 
 
-  static void setupScanner(ScannerBase scanner, Collection<Column> columns, long startTs) {
+  static void setupScanner(ScannerBase scanner, Collection<Column> columns, long startTs,
+      boolean showReadLocks) {
     for (Column col : columns) {
       if (col.isQualifierSet()) {
         scanner.fetchColumn(ByteUtil.toText(col.getFamily()), ByteUtil.toText(col.getQualifier()));
@@ -86,6 +93,7 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
 
     IteratorSetting iterConf = new IteratorSetting(10, SnapshotIterator.class);
     SnapshotIterator.setSnaptime(iterConf, startTs);
+    SnapshotIterator.setReturnReadLockPresent(iterConf, showReadLocks);
     scanner.addScanIterator(iterConf);
   }
 
@@ -111,7 +119,7 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
       scanner.clearScanIterators();
       scanner.setRange(SpanUtil.toRange(snapIterConfig.getSpan()));
 
-      setupScanner(scanner, snapIterConfig.getColumns(), startTs);
+      setupScanner(scanner, snapIterConfig.getColumns(), startTs, snapIterConfig.showReadLocks);
 
       this.iterator = scanner.iterator();
     }
@@ -137,7 +145,7 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
     }
 
     private void resetScanner(Span span) {
-      snapIterConfig = new Opts(span, snapIterConfig.columns);
+      snapIterConfig = new Opts(span, snapIterConfig.columns, snapIterConfig.showReadLocks);
       setUpIterator();
     }
 

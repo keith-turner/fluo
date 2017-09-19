@@ -237,6 +237,28 @@ public final class Bytes implements Comparable<Bytes>, Serializable {
     return false;
   }
 
+  // TODO remove and open issue.. can possibly use this method when scanning to avoid creating Bytes
+  // when same as last
+  public boolean equals(byte[] data, int offset, int len) {
+    if (len == this.length) {
+      if (this.offset == 0 && offset == 0) {
+        return UnsignedBytes.lexicographicalComparator().compare(this.data, data) == 0;
+      } else {
+        for (int i = this.offset, j = offset; i < len; i++, j++) {
+          int a = (this.data[i] & 0xff);
+          int b = (data[j] & 0xff);
+
+          if (a != b) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   @Override
   public final int hashCode() {
     if (hashCode == 0) {
@@ -293,9 +315,8 @@ public final class Bytes implements Comparable<Bytes>, Serializable {
     }
     byte[] data;
     if (bb.hasArray()) {
-      data =
-          Arrays.copyOfRange(bb.array(), bb.position() + bb.arrayOffset(),
-              bb.limit() + bb.arrayOffset());
+      data = Arrays.copyOfRange(bb.array(), bb.position() + bb.arrayOffset(),
+          bb.limit() + bb.arrayOffset());
     } else {
       data = new byte[bb.remaining()];
       // duplicate so that it does not change position

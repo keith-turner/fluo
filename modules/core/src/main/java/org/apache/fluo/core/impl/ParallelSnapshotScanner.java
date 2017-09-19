@@ -63,7 +63,8 @@ public class ParallelSnapshotScanner {
     this.columnConverter = new CachedColumnConverter(columns);
   }
 
-  ParallelSnapshotScanner(Collection<RowColumn> cells, Environment env, long startTs, TxStats stats) {
+  ParallelSnapshotScanner(Collection<RowColumn> cells, Environment env, long startTs,
+      TxStats stats) {
     for (RowColumn rc : cells) {
       byte[] r = rc.getRow().toArray();
       byte[] cf = rc.getColumn().getFamily().toArray();
@@ -100,7 +101,8 @@ public class ParallelSnapshotScanner {
 
     if (rangesToScan.size() > 0) {
       scanner.setRanges(rangesToScan);
-      SnapshotScanner.setupScanner(scanner, Collections.<Column>emptySet(), startTs);
+      // TODO handle read locks
+      SnapshotScanner.setupScanner(scanner, Collections.<Column>emptySet(), startTs, false);
     } else if (rows != null) {
       List<Range> ranges = new ArrayList<>(rows.size());
 
@@ -110,7 +112,8 @@ public class ParallelSnapshotScanner {
 
       scanner.setRanges(ranges);
 
-      SnapshotScanner.setupScanner(scanner, columns, startTs);
+      // TODO handle read locks
+      SnapshotScanner.setupScanner(scanner, columns, startTs, false);
     } else {
       return null;
     }
@@ -190,5 +193,4 @@ public class ParallelSnapshotScanner {
       bs.close();
     }
   }
-
 }
