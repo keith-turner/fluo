@@ -35,6 +35,7 @@ public class SnapshotIteratorTest {
     SnapshotIterator si = new SnapshotIterator();
 
     Map<String, String> options = new HashMap<>();
+    options.put(SnapshotIterator.RETURN_READLOCK_PRESENT_OPT, "true");// TODO make cfg
     options.put(SnapshotIterator.TIMESTAMP_OPT, startTs + "");
 
     IteratorEnvironment env = TestIteratorEnv.create(IteratorScope.scan, true);
@@ -231,9 +232,8 @@ public class SnapshotIteratorTest {
       input.add("1 f q1 DATA " + startTime, "" + val2);
     }
 
-    Range[] ranges =
-        new Range[] {new Range(), Range.exact("0", "f", "q1"), Range.exact("1", "f", "q1"),
-            Range.exact("2", "f", "q1")};
+    Range[] ranges = new Range[] {new Range(), Range.exact("0", "f", "q1"),
+        Range.exact("1", "f", "q1"), Range.exact("2", "f", "q1")};
 
 
     for (Range range : ranges) {
@@ -256,6 +256,21 @@ public class SnapshotIteratorTest {
     }
 
   }
+
+  @Test
+  public void testReadLock() {
+    TestData input = new TestData();
+
+    input.add("0 f q WRITE 16", "11");
+    input.add("0 f q DATA 11", "15");
+    input.add("0 f q DEL_RLOCK 5", "6");
+    input.add("0 f q RLOCK 5", " 0 f q");
+
+    TestData output = new TestData(newSI(input, 20), new Range());
+
+    System.out.println(output);
+  }
+
 
   private void checkManyColumnData(TestData input, int numToWrite, Range range) throws IOException {
     for (int i = numToWrite * 3 - 1; i > 3; i -= 3) {

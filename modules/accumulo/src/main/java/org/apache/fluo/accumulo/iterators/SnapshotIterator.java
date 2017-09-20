@@ -41,10 +41,10 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
   @VisibleForTesting
   static final String TIMESTAMP_OPT = "timestampOpt";
 
-  static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt";
+  static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt"; // TODO unit test this option
 
-  private static final ByteSequence NOTIFY_CF_BS = new ArrayByteSequence(
-      ColumnConstants.NOTIFY_CF.toArray());
+  private static final ByteSequence NOTIFY_CF_BS =
+      new ArrayByteSequence(ColumnConstants.NOTIFY_CF.toArray());
 
   static final Set<ByteSequence> NOTIFY_CF_SET = Collections.singleton(NOTIFY_CF_BS);
 
@@ -99,12 +99,17 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
           if (ts > invalidationTime) {
             invalidationTime = ts;
           }
-          source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
+          if (returnReadLockPresent) {
+            source.skipToPrefix(curCol, ColumnConstants.RLOCK_PREFIX);
+          } else {
+            source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
+          }
           continue;
 
         } else if (colType == ColumnConstants.RLOCK_PREFIX) {
           if (returnReadLockPresent)
-            readLockTimestamp = source.getTopKey().getTimestamp();
+            readLockTimestamp = source.getTopKey().getTimestamp(); // TODO this is bad strat.. could
+                                                                   // skip col
           source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
           continue;
         } else if (colType == ColumnConstants.LOCK_PREFIX) {
@@ -158,6 +163,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
       IteratorEnvironment env) throws IOException {
     this.source = new TimestampSkippingIterator(source);
     this.snaptime = Long.parseLong(options.get(TIMESTAMP_OPT));
+    this.returnReadLockPresent =
+        Boolean.parseBoolean(options.getOrDefault(RETURN_READLOCK_PRESENT_OPT, "false"));
     // TODO could require client to send version as a sanity check
   }
 
