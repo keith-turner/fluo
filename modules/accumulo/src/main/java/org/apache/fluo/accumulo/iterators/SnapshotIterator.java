@@ -43,8 +43,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt";
 
-  private static final ByteSequence NOTIFY_CF_BS =
-      new ArrayByteSequence(ColumnConstants.NOTIFY_CF.toArray());
+  private static final ByteSequence NOTIFY_CF_BS = new ArrayByteSequence(
+      ColumnConstants.NOTIFY_CF.toArray());
 
   static final Set<ByteSequence> NOTIFY_CF_SET = Collections.singleton(NOTIFY_CF_BS);
 

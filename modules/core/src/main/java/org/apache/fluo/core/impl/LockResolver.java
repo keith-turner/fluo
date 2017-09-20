@@ -35,6 +35,7 @@ import org.apache.fluo.accumulo.iterators.PrewriteIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
+import org.apache.fluo.accumulo.values.DelReadLockValue;
 import org.apache.fluo.accumulo.values.LockValue;
 import org.apache.fluo.accumulo.values.ReadLockValue;
 import org.apache.fluo.api.data.Bytes;
@@ -79,7 +80,6 @@ public class LockResolver {
     }
 
     return groupedLocks;
-
   }
 
 
@@ -90,7 +90,7 @@ public class LockResolver {
     final Long transactorId;
     final long lockTs;
     final boolean isReadLock;
-    final Entry<Key, Value> entry; // TODO probably only need key
+    final Entry<Key, Value> entry;
 
     public LockInfo(Entry<Key, Value> kve) {
       long rawTs = kve.getKey().getTimestamp();
@@ -172,7 +172,6 @@ public class LockResolver {
     }
 
     TxInfoCache txiCache = env.getSharedResources().getTxInfoCache();
-    // TODO finish converting method to use lock info from here....
     Set<Entry<PrimaryRowColumn, List<LockInfo>>> es = groupedLocks.entrySet();
     for (Entry<PrimaryRowColumn, List<LockInfo>> group : es) {
       TxInfo txInfo = txiCache.getTransactionInfo(group.getKey());
@@ -182,6 +181,7 @@ public class LockResolver {
           numResolved += group.getValue().size();
           break;
         case LOCKED:
+          // TODO ensure primary is not read lock???
           if (rollbackPrimary(env, startTs, group.getKey(), txInfo.lockValue)) {
             rollback(env, startTs, group.getKey(), group.getValue(), mutations);
             numResolved += group.getValue().size();
@@ -194,8 +194,8 @@ public class LockResolver {
           break;
         case UNKNOWN:
         default:
-          throw new IllegalStateException(
-              "can not abort : " + group.getKey() + " (" + txInfo.status + ")");
+          throw new IllegalStateException("can not abort : " + group.getKey() + " ("
+              + txInfo.status + ")");
       }
     }
 
@@ -207,20 +207,25 @@ public class LockResolver {
   }
 
   private static void rollback(Environment env, long startTs, PrimaryRowColumn prc,
-      List<Entry<Key, Value>> value, Map<ByteSequence, Mutation> mutations) {
-    for (Entry<Key, Value> entry : value) {
-      if (isPrimary(prc, entry.getKey())) {
+      List<LockInfo> value, Map<ByteSequence, Mutation> mutations) {
+    for (LockInfo lockInfo : value) {
+      if (isPrimary(prc, lockInfo.entry.getKey())) {
         continue;
       }
 
-      long lockTs = entry.getKey().getTimestamp() & ColumnConstants.TIMESTAMP_MASK;
-      Mutation mut = getMutation(entry.getKey().getRowData(), mutations);
-      Key k = entry.getKey();
-      mut.put(k.getColumnFamilyData().toArray(), k.getColumnQualifierData().toArray(),
-          k.getColumnVisibilityParsed(), ColumnConstants.DEL_LOCK_PREFIX | lockTs,
-          DelLockValue.encodeRollback(false, true));
+      Mutation mut = getMutation(lockInfo.entry.getKey().getRowData(), mutations);
+      Key k = lockInfo.entry.getKey();
+      if (lockInfo.isReadLock) {
+        mut.put(k.getColumnFamilyData().toArray(), k.getColumnQualifierData().toArray(),
+            k.getColumnVisibilityParsed(),
+            ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(lockInfo.lockTs, true),
+            DelReadLockValue.encode(lockInfo.lockTs, true));
+      } else {
+        mut.put(k.getColumnFamilyData().toArray(), k.getColumnQualifierData().toArray(),
+            k.getColumnVisibilityParsed(), ColumnConstants.DEL_LOCK_PREFIX | lockInfo.lockTs,
+            DelLockValue.encodeRollback(false, true));
+      }
     }
-
   }
 
   private static boolean rollbackPrimary(Environment env, long startTs, PrimaryRowColumn prc,
@@ -229,8 +234,9 @@ public class LockResolver {
 
     IteratorSetting iterConf = new IteratorSetting(10, PrewriteIterator.class);
     PrewriteIterator.setSnaptime(iterConf, startTs);
-    ConditionalFlutation delLockMutation = new ConditionalFlutation(env, prc.prow,
-        new FluoCondition(env, prc.pcol).setIterators(iterConf).setValue(lockValue));
+    ConditionalFlutation delLockMutation =
+        new ConditionalFlutation(env, prc.prow, new FluoCondition(env, prc.pcol).setIterators(
+            iterConf).setValue(lockValue));
 
     delLockMutation.put(prc.pcol, ColumnConstants.DEL_LOCK_PREFIX | prc.startTs,
         DelLockValue.encodeRollback(true, true));
@@ -256,12 +262,11 @@ public class LockResolver {
         continue;
       }
 
-
       long lockTs = lockInfo.lockTs;
       // TODO may be that a stronger sanity check that could be done here
       if (commitTs < lockTs) {
-        throw new IllegalStateException(
-            "bad commitTs : " + lockInfo.entry.getKey() + " (" + commitTs + "<" + lockTs + ")");
+        throw new IllegalStateException("bad commitTs : " + lockInfo.entry.getKey() + " ("
+            + commitTs + "<" + lockTs + ")");
       }
 
       Mutation mut = getMutation(lockInfo.entry.getKey().getRowData(), mutations);
@@ -269,13 +274,17 @@ public class LockResolver {
       Column col = SpanUtil.toRowColumn(lockInfo.entry.getKey()).getColumn();
 
       // TODO finish converting method to use lock info from here....
-      LockValue lv = new LockValue(entry.getValue().get());
-      boolean isReadlock = false; // TODO figure this out
-      ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(),
-          isReadlock, lockTs, commitTs, env.getConfiguredObservers().getObservedColumns(STRONG),
-          mut);
+      if (lockInfo.isReadLock) {
+        // TODO could have a read lock on the trigger
+        boolean isTrigger = false;
+        ColumnUtil.commitColumn(env, isTrigger, false, col, false, false, true, lockTs, commitTs,
+            env.getConfiguredObservers().getObservedColumns(STRONG), mut);
+      } else {
+        LockValue lv = new LockValue(lockInfo.entry.getValue().get());
+        ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(),
+            false, lockTs, commitTs, env.getConfiguredObservers().getObservedColumns(STRONG), mut);
+      }
     }
-
   }
 
   private static Mutation getMutation(ByteSequence row, Map<ByteSequence, Mutation> mutations) {

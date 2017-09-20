@@ -15,6 +15,12 @@
 
 package org.apache.fluo.integration.impl;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,7 +30,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.data.Key;
@@ -36,13 +47,16 @@ import org.apache.fluo.api.client.FluoFactory;
 import org.apache.fluo.api.client.Loader;
 import org.apache.fluo.api.client.LoaderExecutor;
 import org.apache.fluo.api.client.Snapshot;
+import org.apache.fluo.api.client.SnapshotBase;
 import org.apache.fluo.api.client.Transaction;
 import org.apache.fluo.api.client.TransactionBase;
 import org.apache.fluo.api.client.scanner.CellScanner;
 import org.apache.fluo.api.config.FluoConfiguration;
 import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.api.data.RowColumnValue;
 import org.apache.fluo.api.data.Span;
+import org.apache.fluo.api.exceptions.AlreadySetException;
 import org.apache.fluo.api.exceptions.CommitException;
 import org.apache.fluo.integration.ITBaseImpl;
 import org.apache.fluo.integration.TestTransaction;
@@ -68,7 +82,7 @@ public class ReadLockIT extends ITBaseImpl {
                                                                                // all get
                                                                                // methods
     String alias1 = aliases.get("r:" + node1).get(ALIAS_COL);
-    String alias2 = aliases.get("r:" + node1).get(ALIAS_COL);
+    String alias2 = aliases.get("r:" + node2).get(ALIAS_COL);
 
     addEdge(tx, node1, node2, alias1, alias2);
   }
@@ -91,7 +105,7 @@ public class ReadLockIT extends ITBaseImpl {
       String[] aliases = rcv.getsValue().split(":");
 
       if (aliases.length != 2) {
-        System.out.println(rcv);
+        throw new RuntimeException("bad alias " + rcv);
       }
 
       if (!alias.equals(aliases[0])) {
@@ -109,6 +123,7 @@ public class ReadLockIT extends ITBaseImpl {
     try (Transaction tx = client.newTransaction()) {
       setAlias(tx, "node1", "bob");
       setAlias(tx, "node2", "joe");
+      setAlias(tx, "node3", "alice");
       tx.commit();
     }
 
@@ -136,6 +151,9 @@ public class ReadLockIT extends ITBaseImpl {
     } catch (CommitException ce) {
       // ce.printStackTrace();
     }
+
+    Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob", "bob:alice", "alice:bob"),
+        getDerivedEdges());
   }
 
   @Test
@@ -156,7 +174,6 @@ public class ReadLockIT extends ITBaseImpl {
     tx1.commit();
     tx1.close();
 
-
     // TODO verify data
 
     try {
@@ -165,13 +182,26 @@ public class ReadLockIT extends ITBaseImpl {
     } catch (CommitException ce) {
       // ce.printStackTrace();
     }
+
+    // ensure the failed read lock on node1 is cleaned up
+    try (Transaction tx = client.newTransaction()) {
+      setAlias(tx, "node1", "fred");
+      tx.commit();
+    }
+
+    try (Transaction tx = client.newTransaction()) {
+      addEdge(tx, "node1", "node2");
+      tx.commit();
+    }
+
+    Assert.assertEquals(ImmutableSet.of("fred:jojo", "jojo:fred"), getDerivedEdges());
   }
 
-  private void dumpTable() throws TableNotFoundException {
+  private void dumpTable(Consumer<String> out) throws TableNotFoundException {
     Scanner scanner = conn.createScanner(getCurTableName(), Authorizations.EMPTY);
 
     for (Entry<Key, Value> entry : scanner) {
-      System.out.println(FluoFormatter.toString(entry));
+      out.accept(FluoFormatter.toString(entry));
     }
   }
 
@@ -186,6 +216,7 @@ public class ReadLockIT extends ITBaseImpl {
     }
 
     addEdge("node1", "node2");
+    Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob"), getDerivedEdges());
 
     try (Transaction tx = client.newTransaction()) {
       setAlias(tx, "node1", "bobby");
@@ -193,11 +224,8 @@ public class ReadLockIT extends ITBaseImpl {
     }
 
     addEdge("node1", "node3");
-    // TODO verify data
-
-
-    printSnapshot();
-    dumpTable();
+    Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby", "bobby:alice", "alice:bobby"),
+        getDerivedEdges());
   }
 
   @Test
@@ -240,13 +268,19 @@ public class ReadLockIT extends ITBaseImpl {
       loadOps.add((tx, ctx) -> addEdge(tx, enodes[0], enodes[1]));
     }
 
-    Map<String, String> nodes2 = new HashMap<>(nodes);
-    for (int i = 0; i < numAliasChanges; i++) {
+    Map<String, String> changes = new HashMap<>();
+    while (changes.size() < numAliasChanges) {
       String node = nodesList.get(rand.nextInt(nodesList.size()));
       String alias = String.format("a-%09d", rand.nextInt(1000000000));
-      loadOps.add((tx, ctx) -> setAlias(tx, node, alias));
-      nodes2.put(node, alias);
+      changes.put(node, alias);
     }
+
+    Map<String, String> nodes2 = new HashMap<>(nodes);
+    nodes2.putAll(changes);
+
+    changes.forEach((node, alias) -> {
+      loadOps.add((tx, ctx) -> setAlias(tx, node, alias));
+    });
 
     Collections.shuffle(loadOps, rand);
 
@@ -267,12 +301,188 @@ public class ReadLockIT extends ITBaseImpl {
       expectedEdges.add(alias2 + ":" + alias1);
     }
 
-    Set<String> actualEdges = new HashSet<>();
+    Set<String> actualEdges = getDerivedEdges();
+
+    if (!expectedEdges.equals(actualEdges)) {
+      Path dumpFile = Paths.get("target/ReadLockIT.txt");
+
+      try (BufferedWriter writer = Files.newBufferedWriter(dumpFile)) {
+
+        Consumer<String> out = s -> {
+          try {
+            writer.append(s);
+            writer.append("\n");
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        };
+
+
+        writer.append("Alias changes : \n");
+        Maps.difference(nodes, nodes2).entriesDiffering()
+            .forEach((k, v) -> out.accept(k + " " + v));
+
+        writer.append("expected - actual : \n");
+        Sets.difference(expectedEdges, actualEdges).forEach(out);
+        writer.append("\n");
+
+        writer.append("actual - expected : \n");
+        Sets.difference(actualEdges, expectedEdges).forEach(out);
+        writer.append("\n");
+
+        printSnapshot(out);
+        dumpTable(out);
+      }
+      Assert.fail("Did not produce expected graph, dumped info to " + dumpFile);
+    }
+  }
+
+  private Set<String> getDerivedEdges() {
+    Set<String> derivedEdges = new HashSet<>();
     try (Snapshot snap = client.newSnapshot()) {
       snap.scanner().over(Span.prefix("d:")).build().stream().map(RowColumnValue::getsRow)
-          .map(r -> r.substring(2)).forEach(actualEdges::add);
+          .map(r -> r.substring(2)).forEach(derivedEdges::add);
+    }
+    return derivedEdges;
+  }
+
+  @Test(expected = AlreadySetException.class)
+  public void testReadAndWriteLockInSameTx() {
+    try (Transaction tx = client.newTransaction()) {
+      setAlias(tx, "node1", "bob");
+      setAlias(tx, "node2", "joe");
+
+
+      tx.commit();
     }
 
-    Assert.assertEquals(expectedEdges, expectedEdges);
+    try (Transaction tx = client.newTransaction()) {
+      setAlias(tx, "node1", "bobby");
+      // tries to get a read lock on node1 in same tx
+      addEdge(tx, "node1", "node2");
+    }
+  }
+
+  private static final Column c1 = new Column("f1", "q1");
+  private static final Column c2 = new Column("f1", "q2");
+  private static final Column invCol = new Column("f1", "inv");
+
+  final private void ensureReadLocksSet(Consumer<TransactionBase> readLockOperation) {
+
+    try (Transaction txi = client.newTransaction()) {
+      txi.set("test1", c1, "45");
+      txi.set("test1", c2, "90");
+      txi.set("test2", c1, "30");
+      txi.set("test2", c2, "60");
+      txi.commit();
+    }
+
+
+    List<Consumer<TransactionBase>> writeLockOperations = ImmutableList.of(txw -> {
+      txw.set("test1", c1, "47");
+    }, txw -> {
+      txw.set("test1", c2, "94");
+    }, txw -> {
+      txw.set("test2", c1, "37");
+    }, txw -> {
+      txw.set("test2", c2, "74");
+    });
+
+    List<Transaction> writeTxs = new ArrayList<>();
+    for (Consumer<TransactionBase> wop : writeLockOperations) {
+      Transaction wtx = client.newTransaction();
+      wop.accept(wtx);
+      writeTxs.add(wtx);
+    }
+
+    try (Transaction txr = client.newTransaction()) {
+      readLockOperation.accept(txr);
+      txr.commit();
+    }
+
+    for (Transaction wtx : writeTxs) {
+      try {
+        wtx.commit();
+        Assert.fail();
+      } catch (CommitException ce) {
+      }
+    }
+
+    try (Snapshot snap = client.newSnapshot()) {
+      Assert.assertEquals("45", snap.gets("test1", c1));
+      Assert.assertEquals("90", snap.gets("test1", c2));
+      Assert.assertEquals("test1", snap.gets("45", invCol));
+      Assert.assertEquals("test1", snap.gets("90", invCol));
+      Assert.assertEquals("30", snap.gets("test2", c1));
+      Assert.assertEquals("60", snap.gets("test2", c2));
+      Assert.assertEquals("test2", snap.gets("30", invCol));
+      Assert.assertEquals("test2", snap.gets("60", invCol));
+    }
+  }
+
+  @Test
+  public void testGet() {
+    ensureReadLocksSet(txr -> {
+      // ensure this operation sets two read locks
+      SnapshotBase rlSnap = txr.withReadLock();
+
+      txr.set(rlSnap.gets("test1", c1), invCol, "test1");
+      txr.set(rlSnap.gets("test1", c2), invCol, "test1");
+      txr.set(rlSnap.gets("test2", c1), invCol, "test2");
+      txr.set(rlSnap.gets("test2", c2), invCol, "test2");
+    });
+  }
+
+  @Test
+  public void testGetColumns() {
+    ensureReadLocksSet(txr -> {
+      // ensure this operation sets two read locks
+      Map<Column, String> vals = txr.withReadLock().gets("test1", c1, c2);
+      txr.set(vals.get(c1), invCol, "test1");
+      txr.set(vals.get(c2), invCol, "test1");
+      vals = txr.withReadLock().gets("test2", c1, c2);
+      txr.set(vals.get(c1), invCol, "test2");
+      txr.set(vals.get(c2), invCol, "test2");
+    });
+  }
+
+  @Test
+  public void testGetRowsColumns() {
+    ensureReadLocksSet(txr -> {
+      // ensure this operation sets two read locks
+      Map<String, Map<Column, String>> vals =
+          txr.withReadLock().gets(ImmutableList.of("test1", "test2"), c1, c2);
+      txr.set(vals.get("test1").get(c1), invCol, "test1");
+      txr.set(vals.get("test1").get(c2), invCol, "test1");
+      txr.set(vals.get("test2").get(c1), invCol, "test2");
+      txr.set(vals.get("test2").get(c2), invCol, "test2");
+    });
+  }
+
+  @Test
+  public void testGetRowColumns() {
+    ensureReadLocksSet(txr -> {
+      // ensure this operation sets two read locks
+      Map<RowColumn, String> vals =
+          txr.withReadLock().gets(
+              ImmutableList.of(new RowColumn("test1", c1), new RowColumn("test1", c2),
+                  new RowColumn("test2", c1), new RowColumn("test2", c2)));
+      txr.set(vals.get(new RowColumn("test1", c1)), invCol, "test1");
+      txr.set(vals.get(new RowColumn("test1", c2)), invCol, "test1");
+      txr.set(vals.get(new RowColumn("test2", c1)), invCol, "test2");
+      txr.set(vals.get(new RowColumn("test2", c2)), invCol, "test2");
+    });
+  }
+
+  @Test(expected = UnsupportedOperationException.class)
+  public void testScan() {
+    try (Transaction tx = client.newTransaction()) {
+      tx.withReadLock().scanner().build();
+    }
+  }
+
+  @Test
+  public void testOnlyReadLocks() {
+    // TODO test a transaction that only makes read locks... what should its behavior be????
   }
 }
