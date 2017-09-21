@@ -120,8 +120,9 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
           continue;
 
         } else if (colType == ColumnConstants.RLOCK_PREFIX) {
-          if (returnReadLockPresent)
+          if (returnReadLockPresent) {
             rememberReadLock(source.getTopKey(), source.getTopValue());
+          }
 
           source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
           continue;
