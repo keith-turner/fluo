@@ -51,6 +51,7 @@ import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
+import org.apache.fluo.accumulo.iterators.OpenReadLockIterator;
 import org.apache.fluo.accumulo.iterators.PrewriteIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
@@ -575,6 +576,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   private void checkForOrphanedReadLocks(CommitData cd) throws Exception {
 
 
+    // TODO remove
     System.out.println("readLocksSeen " + readLocksSeen);
     System.out.println("rejected " + cd.getRejected());
 
@@ -611,6 +613,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
   private void checkForOrphanedLocks(CommitData cd) throws Exception {
     readUnread(cd);
+    // TODO determine what rejected entries were resolved above and remove before checking read
+    // locks
     checkForOrphanedReadLocks(cd);
   }
 
@@ -628,12 +632,11 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
     BatchScanner bscanner = null;
     try {
-      // TODO num threads
+      // TODO config num threads?
       bscanner = env.getConnector().createBatchScanner(env.getTable(), env.getAuthorizations(), 1);
 
       bscanner.setRanges(ranges);
-      IteratorSetting iterCfg = new IteratorSetting(10, PrewriteIterator.class);
-      PrewriteIterator.setSnaptime(iterCfg, startTs);
+      IteratorSetting iterCfg = new IteratorSetting(10, OpenReadLockIterator.class);
 
       bscanner.addScanIterator(iterCfg);
 
