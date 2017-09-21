@@ -87,8 +87,7 @@ public class ReadLockIT extends ITBaseImpl {
     addEdge(tx, node1, node2, alias1, alias2);
   }
 
-  static void addEdge(TransactionBase tx, String node1, String node2, String alias1,
-      String alias2) {
+  static void addEdge(TransactionBase tx, String node1, String node2, String alias1, String alias2) {
     tx.set("d:" + alias1 + ":" + alias2, new Column("edge", node1 + ":" + node2), "");
     tx.set("d:" + alias2 + ":" + alias1, new Column("edge", node2 + ":" + node1), "");
 
@@ -464,8 +463,9 @@ public class ReadLockIT extends ITBaseImpl {
     ensureReadLocksSet(txr -> {
       // ensure this operation sets two read locks
       Map<RowColumn, String> vals =
-          txr.withReadLock().gets(ImmutableList.of(new RowColumn("test1", c1),
-              new RowColumn("test1", c2), new RowColumn("test2", c1), new RowColumn("test2", c2)));
+          txr.withReadLock().gets(
+              ImmutableList.of(new RowColumn("test1", c1), new RowColumn("test1", c2),
+                  new RowColumn("test2", c1), new RowColumn("test2", c2)));
       txr.set(vals.get(new RowColumn("test1", c1)), invCol, "test1");
       txr.set(vals.get(new RowColumn("test1", c2)), invCol, "test1");
       txr.set(vals.get(new RowColumn("test2", c1)), invCol, "test2");

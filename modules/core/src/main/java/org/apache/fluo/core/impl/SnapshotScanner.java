@@ -177,7 +177,8 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
           amountRead += entry.getKey().getSize() + entry.getValue().getSize();
           numRead++;
 
-          if (numRead > 100 || amountRead > 1 << 12) {
+          if (numRead > 100 || amountRead > 1 << 12) { // TODO should counts be adjusted since read
+                                                       // locks may now be seen
             break;
           }
         }
@@ -222,6 +223,8 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
           continue mloop;
         } else if (colType == ColumnConstants.DATA_PREFIX) {
           stats.incrementEntriesReturned(1);
+          return entry;
+        } else if (colType == ColumnConstants.RLOCK_PREFIX) {
           return entry;
         } else {
           throw new IllegalArgumentException("Unexpected column type " + colType);

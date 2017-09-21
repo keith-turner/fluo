@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.data.ArrayByteSequence;
 import org.apache.accumulo.core.data.ByteSequence;
@@ -43,8 +44,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt"; // TODO unit test this option
 
-  private static final ByteSequence NOTIFY_CF_BS =
-      new ArrayByteSequence(ColumnConstants.NOTIFY_CF.toArray());
+  private static final ByteSequence NOTIFY_CF_BS = new ArrayByteSequence(
+      ColumnConstants.NOTIFY_CF.toArray());
 
   static final Set<ByteSequence> NOTIFY_CF_SET = Collections.singleton(NOTIFY_CF_BS);
 
@@ -56,10 +57,23 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   private final Key curCol = new Key();
 
-  private long readLockTimestamp = -1;
+  private Key readLockKey;
+  private Value readLockValue;
+
+  private void rememberReadLock(Key key, Value val) {
+    Preconditions.checkState(readLockKey == null && readLockValue == null);
+
+    readLockKey = new Key(key);
+    readLockValue = new Value(val);
+  }
+
+  private void clearReadLock() {
+    readLockKey = null;
+    readLockValue = null;
+  }
 
   private void findTop() throws IOException {
-    outer: while (source.hasTop()) {
+    outer: while (source.hasTop() && readLockKey == null) {
       long invalidationTime = -1;
       long dataPointer = -1;
 
@@ -68,7 +82,6 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
       }
 
       curCol.set(source.getTopKey());
-      readLockTimestamp = -1;
 
       while (source.hasTop()
           && curCol.equals(source.getTopKey(), PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
@@ -108,8 +121,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
         } else if (colType == ColumnConstants.RLOCK_PREFIX) {
           if (returnReadLockPresent)
-            readLockTimestamp = source.getTopKey().getTimestamp(); // TODO this is bad strat.. could
-                                                                   // skip col
+            rememberReadLock(source.getTopKey(), source.getTopValue());
+
           source.skipToPrefix(curCol, ColumnConstants.LOCK_PREFIX);
           continue;
         } else if (colType == ColumnConstants.LOCK_PREFIX) {
@@ -170,13 +183,13 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   @Override
   public boolean hasTop() {
-    return readLockTimestamp > 0 || hasTop && source.hasTop();
+    return hasTop && (readLockKey != null || source.hasTop());
   }
 
   @Override
   public void next() throws IOException {
-    if (readLockTimestamp > 0) {
-      readLockTimestamp = -1;
+    if (readLockKey != null) {
+      clearReadLock();
     } else {
       curCol.set(source.getTopKey());
       source.skipColumn(curCol);
@@ -192,6 +205,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
     Range newRange = range;
     Collection<ByteSequence> cols;
     boolean inc;
+
+    clearReadLock();
 
     // handle continue case
     hasTop = true;
@@ -222,10 +237,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   @Override
   public Key getTopKey() {
-    if (readLockTimestamp > 0) {
-      // TODO unit test
-      curCol.setTimestamp(readLockTimestamp);
-      return curCol;
+    if (readLockKey != null) {
+      return readLockKey;
     } else {
       return source.getTopKey();
     }
@@ -233,8 +246,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   @Override
   public Value getTopValue() {
-    if (readLockTimestamp > 0) {
-      return EMPTY_VAL;
+    if (readLockValue != null) {
+      return readLockValue;
     } else {
       return source.getTopValue();
     }

@@ -232,8 +232,9 @@ public class SnapshotIteratorTest {
       input.add("1 f q1 DATA " + startTime, "" + val2);
     }
 
-    Range[] ranges = new Range[] {new Range(), Range.exact("0", "f", "q1"),
-        Range.exact("1", "f", "q1"), Range.exact("2", "f", "q1")};
+    Range[] ranges =
+        new Range[] {new Range(), Range.exact("0", "f", "q1"), Range.exact("1", "f", "q1"),
+            Range.exact("2", "f", "q1")};
 
 
     for (Range range : ranges) {
@@ -254,19 +255,27 @@ public class SnapshotIteratorTest {
     for (Range range : ranges) {
       checkManyColumnData(input, numToWrite, range);
     }
-
   }
 
   @Test
   public void testReadLock() {
     TestData input = new TestData();
 
-    input.add("0 f q WRITE 16", "11");
+    input.add("0 f q WRITE 16", "11 DELETE");
     input.add("0 f q DATA 11", "15");
     input.add("0 f q DEL_RLOCK 5", "6");
     input.add("0 f q RLOCK 5", " 0 f q");
 
+    input.add("1 f q WRITE 16", "11");
+    input.add("1 f q DATA 11", "15");
+
+    input.add("2 f q WRITE 16", "11");
+    input.add("2 f q DATA 11", "17");
+    input.add("2 f q DEL_RLOCK 5", "6");
+    input.add("2 f q RLOCK 5", " 0 f q");
     TestData output = new TestData(newSI(input, 20), new Range());
+
+    // TODO verify
 
     System.out.println(output);
   }
