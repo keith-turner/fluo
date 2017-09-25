@@ -580,7 +580,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     System.out.println("readLocksSeen " + readLocksSeen);
     System.out.println("rejected " + cd.getRejected());
 
-    Map<Bytes, Set<Column>> rowColsToCheck = new HashMap();
+    Map<Bytes, Set<Column>> rowColsToCheck = new HashMap<>();
 
     for (Entry<Bytes, Set<Column>> entry : cd.getRejected().entrySet()) {
       Set<Column> colsToCheck = null;
@@ -626,7 +626,10 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
     for (Entry<Bytes, Set<Column>> e1 : rowColsToCheck.entrySet()) {
       for (Column col : e1.getValue()) {
-        ranges.add(SpanUtil.toRange(Span.exact(e1.getKey(), col)));
+        Key start = SpanUtil.toKey(new RowColumn(e1.getKey(), col));
+        Key end = new Key(start);
+        end.setTimestamp(ColumnConstants.LOCK_PREFIX | ColumnConstants.TIMESTAMP_MASK);
+        ranges.add(new Range(start, true, end, false));
       }
     }
 
