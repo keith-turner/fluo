@@ -24,13 +24,16 @@ import java.util.Set;
 
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.BatchScanner;
 import org.apache.accumulo.core.client.ConditionalWriter;
 import org.apache.accumulo.core.client.ConditionalWriter.Status;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.data.ByteSequence;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
+import org.apache.fluo.accumulo.iterators.OpenReadLockIterator;
 import org.apache.fluo.accumulo.iterators.PrewriteIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
@@ -40,12 +43,14 @@ import org.apache.fluo.accumulo.values.LockValue;
 import org.apache.fluo.accumulo.values.ReadLockValue;
 import org.apache.fluo.api.data.Bytes;
 import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.ColumnUtil;
 import org.apache.fluo.core.util.ConditionalFlutation;
 import org.apache.fluo.core.util.FluoCondition;
 import org.apache.fluo.core.util.SpanUtil;
 
+import static org.apache.fluo.accumulo.util.ColumnConstants.PREFIX_MASK;
 import static org.apache.fluo.api.observer.Observer.NotificationType.STRONG;
 
 /**
@@ -301,5 +306,46 @@ public class LockResolver {
   private static boolean isPrimary(PrimaryRowColumn prc, Key k) {
     return prc.prow.equals(ByteUtil.toBytes(k.getRowData()))
         && prc.pcol.equals(SpanUtil.toRowColumn(k).getColumn());
+  }
+
+  static List<Entry<Key, Value>> getOpenReadLocks(Environment env,
+      Map<Bytes, Set<Column>> rowColsToCheck) throws Exception {
+    // TODO maybe move to lock resolver
+
+    List<Range> ranges = new ArrayList<>();
+
+    for (Entry<Bytes, Set<Column>> e1 : rowColsToCheck.entrySet()) {
+      for (Column col : e1.getValue()) {
+        Key start = SpanUtil.toKey(new RowColumn(e1.getKey(), col));
+        Key end = new Key(start);
+        end.setTimestamp(ColumnConstants.LOCK_PREFIX | ColumnConstants.TIMESTAMP_MASK);
+        ranges.add(new Range(start, true, end, false));
+      }
+    }
+
+    BatchScanner bscanner = null;
+    try {
+      // TODO config num threads?
+      bscanner = env.getConnector().createBatchScanner(env.getTable(), env.getAuthorizations(), 1);
+
+      bscanner.setRanges(ranges);
+      IteratorSetting iterCfg = new IteratorSetting(10, OpenReadLockIterator.class);
+
+      bscanner.addScanIterator(iterCfg);
+
+      List<Entry<Key, Value>> ret = new ArrayList<>();
+      for (Entry<Key, Value> entry : bscanner) {
+        if ((entry.getKey().getTimestamp() & PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
+          ret.add(entry);
+        }
+      }
+
+      return ret;
+
+    } finally {
+      if (bscanner != null) {
+        bscanner.close();
+      }
+    }
   }
 }

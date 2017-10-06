@@ -4,9 +4,9 @@
  * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License. You may obtain a
  * copy of the License at
- *
+ * 
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -36,7 +36,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
-import org.apache.accumulo.core.client.BatchScanner;
 import org.apache.accumulo.core.client.ConditionalWriter;
 import org.apache.accumulo.core.client.ConditionalWriter.Result;
 import org.apache.accumulo.core.client.ConditionalWriter.Status;
@@ -51,7 +50,6 @@ import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
-import org.apache.fluo.accumulo.iterators.OpenReadLockIterator;
 import org.apache.fluo.accumulo.iterators.PrewriteIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
@@ -84,6 +82,7 @@ import org.apache.fluo.core.util.FluoCondition;
 import org.apache.fluo.core.util.Flutation;
 import org.apache.fluo.core.util.Hex;
 import org.apache.fluo.core.util.SpanUtil;
+import org.apache.fluo.core.util.UtilWaitThread;
 
 import static org.apache.fluo.accumulo.util.ColumnConstants.PREFIX_MASK;
 import static org.apache.fluo.accumulo.util.ColumnConstants.RLOCK_PREFIX;
@@ -201,7 +200,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
     env.getSharedResources().getVisCache().validate(columns);
 
-    ParallelSnapshotScanner pss = new ParallelSnapshotScanner(rows, columns, env, startTs, stats);
+    ParallelSnapshotScanner pss =
+        new ParallelSnapshotScanner(rows, columns, env, startTs, stats, readLocksSeen);
 
     Map<Bytes, Map<Column, Bytes>> ret = pss.scan();
 
@@ -220,7 +220,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       return Collections.emptyMap();
     }
 
-    ParallelSnapshotScanner pss = new ParallelSnapshotScanner(rowColumns, env, startTs, stats);
+    ParallelSnapshotScanner pss =
+        new ParallelSnapshotScanner(rowColumns, env, startTs, stats, readLocksSeen);
 
     Map<Bytes, Map<Column, Bytes>> scan = pss.scan();
     Map<RowColumn, Bytes> ret = new HashMap<>();
@@ -265,6 +266,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     }
 
     Map<Column, Bytes> ret = new HashMap<>();
+    Set<Column> readLockCols = null;
 
     for (Entry<Key, Value> kve : new SnapshotScanner(env, opts, startTs, stats)) {
 
@@ -274,10 +276,10 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       }
 
       if ((kve.getKey().getTimestamp() & PREFIX_MASK) == RLOCK_PREFIX) {
-        // TODO all in same row.. no need to keep lookup row
-        // TODO reuse column??
-        // TODO parallel scanner needs to populate this....
-        readLocksSeen.computeIfAbsent(row, k -> new HashSet<>()).add(col);
+        if (readLockCols == null) {
+          readLockCols = readLocksSeen.computeIfAbsent(row, k -> new HashSet<>());
+        }
+        readLockCols.add(col);
       } else {
         ret.put(col, Bytes.of(kve.getValue().get()));
       }
@@ -576,10 +578,9 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
   private void checkForOrphanedReadLocks(CommitData cd) throws Exception {
 
-
-    // TODO remove
-    System.out.println("readLocksSeen " + readLocksSeen);
-    System.out.println("rejected " + cd.getRejected());
+    if (readLocksSeen.size() == 0) {
+      return;
+    }
 
     Map<Bytes, Set<Column>> rowColsToCheck = new HashMap<>();
 
@@ -606,9 +607,20 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     if (rowColsToCheck.size() > 0) {
 
       long startTime = System.currentTimeMillis();
-      List<Entry<Key, Value>> openReadLocks = getOpenReadLocks(rowColsToCheck);
-      boolean resolved = LockResolver.resolveLocks(env, startTs, stats, openReadLocks, startTime);
-      // TODO retry and wait if not resolved
+      long waitTime = SnapshotScanner.INITIAL_WAIT_TIME;
+
+      boolean resolved = false;
+
+      List<Entry<Key, Value>> openReadLocks = LockResolver.getOpenReadLocks(env, rowColsToCheck);
+
+      while (!resolved) {
+        resolved = LockResolver.resolveLocks(env, startTs, stats, openReadLocks, startTime);
+        if (!resolved) {
+          UtilWaitThread.sleep(waitTime);
+          stats.incrementLockWaitTime(waitTime);
+          waitTime = Math.min(SnapshotScanner.MAX_WAIT_TIME, waitTime * 2);
+        }
+      }
     }
   }
 
@@ -617,47 +629,6 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     // TODO determine what rejected entries were resolved above and remove before checking read
     // locks
     checkForOrphanedReadLocks(cd);
-  }
-
-  private List<Entry<Key, Value>> getOpenReadLocks(Map<Bytes, Set<Column>> rowColsToCheck)
-      throws Exception {
-    // TODO maybe move to lock resolver
-
-    List<Range> ranges = new ArrayList<>();
-
-    for (Entry<Bytes, Set<Column>> e1 : rowColsToCheck.entrySet()) {
-      for (Column col : e1.getValue()) {
-        Key start = SpanUtil.toKey(new RowColumn(e1.getKey(), col));
-        Key end = new Key(start);
-        end.setTimestamp(ColumnConstants.LOCK_PREFIX | ColumnConstants.TIMESTAMP_MASK);
-        ranges.add(new Range(start, true, end, false));
-      }
-    }
-
-    BatchScanner bscanner = null;
-    try {
-      // TODO config num threads?
-      bscanner = env.getConnector().createBatchScanner(env.getTable(), env.getAuthorizations(), 1);
-
-      bscanner.setRanges(ranges);
-      IteratorSetting iterCfg = new IteratorSetting(10, OpenReadLockIterator.class);
-
-      bscanner.addScanIterator(iterCfg);
-
-      List<Entry<Key, Value>> ret = new ArrayList<>();
-      for (Entry<Key, Value> entry : bscanner) {
-        if ((entry.getKey().getTimestamp() & PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
-          ret.add(entry);
-        }
-      }
-
-      return ret;
-
-    } finally {
-      if (bscanner != null) {
-        bscanner.close();
-      }
-    }
   }
 
   private boolean checkForAckCollision(ConditionalMutation cm) {

@@ -15,7 +15,9 @@
 
 package org.apache.fluo.integration.impl;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -29,10 +31,13 @@ import org.apache.accumulo.core.security.Authorizations;
 import org.apache.fluo.accumulo.format.FluoFormatter;
 import org.apache.fluo.api.client.Snapshot;
 import org.apache.fluo.api.client.Transaction;
+import org.apache.fluo.api.client.TransactionBase;
+import org.apache.fluo.api.data.Column;
 import org.apache.fluo.api.data.RowColumnValue;
 import org.apache.fluo.api.data.Span;
 import org.apache.fluo.api.exceptions.CommitException;
 import org.apache.fluo.core.impl.TransactionImpl.CommitData;
+import org.apache.fluo.core.oracle.Stamp;
 import org.apache.fluo.core.impl.TransactorNode;
 import org.apache.fluo.integration.ITBaseImpl;
 import org.apache.fluo.integration.TestTransaction;
@@ -62,9 +67,59 @@ public class ReadLockFailureIT extends ITBaseImpl {
 
   // TODO test that parallel scans get info on cols with locks
 
+  private void expectCommitException(Consumer<Transaction> retryAction) {
+    try (Transaction tx = client.newTransaction()) {
+      retryAction.accept(tx);
+      tx.commit();
+      Assert.fail();
+    } catch (CommitException ce) {
+
+    }
+  }
+
+  private void retryOnce(Consumer<Transaction> retryAction) {
+
+    expectCommitException(retryAction);
+
+    try (Transaction tx = client.newTransaction()) {
+      retryAction.accept(tx);
+      tx.commit();
+    }
+  }
+
+  private void retryTwice(Consumer<Transaction> retryAction) {
+
+    expectCommitException(retryAction);
+    expectCommitException(retryAction);
+
+    try (Transaction tx = client.newTransaction()) {
+      retryAction.accept(tx);
+      tx.commit();
+    }
+  }
+
+
+  private void partiallyCommit(Consumer<TransactionBase> action, boolean commitPrimary)
+      throws Exception {
+    TransactorNode t2 = new TransactorNode(env);
+    TestTransaction tx2 = new TestTransaction(env, t2);
+
+    action.accept(tx2);
+
+    CommitData cd = tx2.createCommitData();
+    Assert.assertTrue(tx2.preCommit(cd));
+
+    if (commitPrimary) {
+      Stamp commitTs = env.getSharedResources().getOracleClient().getStamp();
+      Assert.assertTrue(tx2.commitPrimaryColumn(cd, commitTs));
+    }
+
+    t2.close();
+  }
+
   // TODO test name
   @Test
-  public void test1() throws Exception {
+  public void testBasicRollback() throws Exception {
 
     try (Transaction tx = client.newTransaction()) {
       setAlias(tx, "node1", "bob");
@@ -78,37 +133,83 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    TransactorNode t2 = new TransactorNode(env);
-    TestTransaction tx2 = new TestTransaction(env, t2);
-
-    addEdge(tx2, "node1", "node3");
+    partiallyCommit(tx -> addEdge(tx, "node1", "node3"), false);
 
     Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob"), getDerivedEdges());
 
-    CommitData cd = tx2.createCommitData();
-    Assert.assertTrue(tx2.preCommit(cd));
+    retryOnce(tx -> setAlias(tx, "node1", "bobby"));
 
-    t2.close();
+    Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby"), getDerivedEdges());
 
-    try (Transaction tx = client.newTransaction()) {
-      setAlias(tx, "node1", "bobby");
-      try {
-        tx.commit(); // commit should fail and roll back the read lock
-      } catch (CommitException ce) {
-        ce.printStackTrace();
-      }
-    }
-
-    Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob"), getDerivedEdges());
-
-    // TODO automatically inspect raw data in accumulo??
-    dumpTable(System.out::println);
-
-    try (Transaction tx = client.newTransaction()) {
-      setAlias(tx, "node1", "bobby");
-      tx.commit();
-    }
+    retryOnce(tx -> setAlias(tx, "node3", "alex"));
 
     Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby"), getDerivedEdges());
   }
+
+  @Test
+  public void testBasicRollforward() throws Exception {
+    try (Transaction tx = client.newTransaction()) {
+      setAlias(tx, "node1", "bob");
+      setAlias(tx, "node2", "joe");
+      setAlias(tx, "node3", "alice");
+      tx.commit();
+    }
+
+    try (Transaction tx = client.newTransaction()) {
+      addEdge(tx, "node1", "node2");
+      tx.commit();
+    }
+
+    partiallyCommit(tx -> addEdge(tx, "node1", "node3"), true);
+
+    retryOnce(tx -> setAlias(tx, "node1", "bobby"));
+
+    Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby", "bobby:alice", "alice:bobby"),
+        getDerivedEdges());
+
+    retryOnce(tx -> setAlias(tx, "node3", "alex"));
+
+    Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby", "bobby:alex", "alex:bobby"),
+        getDerivedEdges());
+  }
+
+
+  @Test
+  public void testParallelScan() throws Exception {
+
+    Column crCol = new Column("stat", "completionRatio");
+
+    try (Transaction tx = client.newTransaction()) {
+      tx.set("user5", crCol, "0.5");
+      tx.set("user6", crCol, "0.75");
+      tx.commit();
+    }
+
+    partiallyCommit(tx -> {
+      // get multiple read locks with a parallel scan
+        Map<String, Map<Column, String>> ratios =
+            tx.withReadLock().gets(Arrays.asList("user5", "user6"), crCol);
+
+        double cr1 = Double.parseDouble(ratios.get("user5").get(crCol));
+        double cr2 = Double.parseDouble(ratios.get("user5").get(crCol));
+
+        tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+      }, false);
+
+    retryTwice(tx -> {
+      Map<String, Map<Column, String>> ratios = tx.gets(Arrays.asList("user5", "user6"), crCol);
+
+      tx.set("user5", crCol, "0.51");
+      tx.set("user6", crCol, "0.76");
+    });
+
+    try (Snapshot snap = client.newSnapshot()) {
+      Assert.assertNull(snap.gets("org1", crCol));
+      Assert.assertEquals("0.51", snap.gets("user5", crCol));
+      Assert.assertEquals("0.76", snap.gets("user6", crCol));
+    }
+  }
+
+
+  // TODO test time out rollback
 }
