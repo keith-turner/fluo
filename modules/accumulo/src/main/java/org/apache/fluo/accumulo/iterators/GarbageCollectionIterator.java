@@ -34,6 +34,7 @@ import org.apache.accumulo.core.iterators.IteratorEnvironment;
 import org.apache.accumulo.core.iterators.IteratorUtil.IteratorScope;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.fluo.accumulo.util.ColumnConstants;
+import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.util.ZookeeperUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
@@ -169,6 +170,7 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
     boolean oldestSeen = false;
     boolean sawAck = false;
     long firstWrite = -1;
+    long lastReadLockDeleteTs = -1;
 
     truncationTime = -1;
 
@@ -252,6 +254,31 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
           keys.add(new KeyValue(source.getTopKey(), source.getTopValue()));
         } else if (complete) {
           completeTxs.remove(txDoneTs);
+        }
+      } else if (colType == ColumnConstants.RLOCK_PREFIX) {
+        boolean keep = false;
+        long rlts = ReadLockUtil.decodeTs(ts);
+        boolean isDelete = ReadLockUtil.isDelete(ts);
+        if (isDelete) {
+          lastReadLockDeleteTs = rlts;
+        }
+
+        if (isFullMajc) {
+          if (isDelete) {
+            keep = rlts > Math.max(invalidationTime, gcTimestamp);
+          } else {
+            keep = lastReadLockDeleteTs != rlts;
+          }
+        } else {
+          // can drop deleted read lock entries.. keep the delete entry.. TODO test prewiter iter
+          // for this case (del read lock, but no read lock)....
+          keep = isDelete || lastReadLockDeleteTs != rlts;
+        }
+
+        if (keep) {
+          // TODO could possibly be a lot of these... could compress this info to a list of
+          // longs....
+          keys.add(new KeyValue(source.getTopKey(), source.getTopValue()));
         }
       } else if (colType == ColumnConstants.LOCK_PREFIX) {
         if (ts > invalidationTime) {
