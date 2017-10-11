@@ -37,6 +37,7 @@ import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.util.ReadLockUtil;
 import org.apache.fluo.accumulo.util.ZookeeperUtil;
 import org.apache.fluo.accumulo.values.DelLockValue;
+import org.apache.fluo.accumulo.values.DelReadLockValue;
 import org.apache.fluo.accumulo.values.WriteValue;
 
 /**
@@ -259,20 +260,24 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
         boolean keep = false;
         long rlts = ReadLockUtil.decodeTs(ts);
         boolean isDelete = ReadLockUtil.isDelete(ts);
+
         if (isDelete) {
           lastReadLockDeleteTs = rlts;
         }
 
-        if (isFullMajc) {
-          if (isDelete) {
-            keep = rlts > Math.max(invalidationTime, gcTimestamp);
+        if (rlts > invalidationTime) {
+          if (isFullMajc) {
+            if (isDelete) {
+              long rlockCommitTs = DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+              keep = rlockCommitTs >= gcTimestamp;
+            } else {
+              keep = lastReadLockDeleteTs != rlts;
+            }
           } else {
-            keep = lastReadLockDeleteTs != rlts;
+            // can drop deleted read lock entries.. keep the delete entry.. TODO test prewiter iter
+            // for this case (del read lock, but no read lock)....
+            keep = isDelete || lastReadLockDeleteTs != rlts;
           }
-        } else {
-          // can drop deleted read lock entries.. keep the delete entry.. TODO test prewiter iter
-          // for this case (del read lock, but no read lock)....
-          keep = isDelete || lastReadLockDeleteTs != rlts;
         }
 
         if (keep) {
