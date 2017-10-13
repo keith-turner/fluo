@@ -273,11 +273,18 @@ public class SnapshotIteratorTest {
     input.add("2 f q DATA 11", "17");
     input.add("2 f q DEL_RLOCK 5", "6");
     input.add("2 f q RLOCK 5", " 0 f q");
+
+
+    TestData expected = new TestData();
+    expected.add("0 f q DATA 11", "15");
+    expected.add("0 f q DEL_RLOCK 5", "6");
+    expected.add("1 f q DATA 11", "15");
+    expected.add("2 f q DATA 11", "17");
+    expected.add("2 f q DEL_RLOCK 5", "6");
+
     TestData output = new TestData(newSI(input, 20), new Range());
 
-    // TODO verify
-
-    System.out.println(output);
+    Assert.assertEquals(expected, output);
   }
 
 

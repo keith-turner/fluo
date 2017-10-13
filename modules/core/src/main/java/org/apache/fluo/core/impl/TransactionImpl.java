@@ -319,8 +319,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
     Map<Column, Bytes> colUpdates = updates.computeIfAbsent(row, k -> new HashMap<>());
     Bytes curVal = colUpdates.get(col);
-    if (curVal != null && isWrite(curVal)) {
-      throw new AlreadySetException("Value already set " + row + " " + col);
+    if (curVal != null && (isWrite(curVal) || isDelete(curVal))) {
+      throw new AlreadySetException("Attemped read lock after write lock " + row + " " + col);
     }
 
     colUpdates.put(col, RLOCK_VAL);

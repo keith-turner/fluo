@@ -112,8 +112,6 @@ public class OpenReadLockIterator implements SortedKeyValueIterator<Key, Value> 
       fams = columnFamilies;
     }
 
-    // TODO could set end key on range to stop at data....
-
     source.seek(range, fams, inclusive);
     findTop();
   }

@@ -362,6 +362,22 @@ public class ReadLockIT extends ITBaseImpl {
     }
   }
 
+  @Test(expected = AlreadySetException.class)
+  public void testReadAndDeleteInSameTx() {
+    try (Transaction tx = client.newTransaction()) {
+      tx.set("123456", new Column("f", "q"), "abc");
+      tx.commit();
+    }
+
+    try (Transaction tx = client.newTransaction()) {
+      tx.delete("123456", new Column("f", "q"));
+      // should fail here because already have write lock
+      String val = tx.withReadLock().gets("123456", new Column("f", "q"));
+      tx.set("123457", new Column("f", "q"), val + "7");
+      tx.commit();
+    }
+  }
+
   private static final Column c1 = new Column("f1", "q1");
   private static final Column c2 = new Column("f1", "q2");
   private static final Column invCol = new Column("f1", "inv");

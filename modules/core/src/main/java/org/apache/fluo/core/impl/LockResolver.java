@@ -310,7 +310,6 @@ public class LockResolver {
 
   static List<Entry<Key, Value>> getOpenReadLocks(Environment env,
       Map<Bytes, Set<Column>> rowColsToCheck) throws Exception {
-    // TODO maybe move to lock resolver
 
     List<Range> ranges = new ArrayList<>();
 
@@ -325,7 +324,6 @@ public class LockResolver {
 
     BatchScanner bscanner = null;
     try {
-      // TODO config num threads?
       bscanner = env.getConnector().createBatchScanner(env.getTable(), env.getAuthorizations(), 1);
 
       bscanner.setRanges(ranges);
