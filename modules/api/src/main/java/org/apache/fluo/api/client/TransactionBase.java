@@ -62,6 +62,17 @@ public interface TransactionBase extends SnapshotBase {
   void setWeakNotification(CharSequence row, Column col);
 
   /**
+   * Normally when a Fluo transaction reads data and does not write to it, it will not collide with
+   * other transactions making concurrent writes. However, all reads done using this method will
+   * acquire a read lock. These read locks cause collisions with transactions doing concurrent
+   * writes. However, multiple transactions can get concurrent read locks on the same key without
+   * colliding.
+   * 
+   * <p>
+   * Scanning with read locks is not supported. Attempting to call {@code withReadLock().scanner()}
+   * will throw an {@link UnsupportedOperationException}. This is because there is an infinite
+   * amount of keys within a range and read locks can not be obtained on them all.
+   * 
    * @since 1.2.0
    */
   default SnapshotBase withReadLock() {
