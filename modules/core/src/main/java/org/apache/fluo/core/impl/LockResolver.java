@@ -275,15 +275,11 @@ public class LockResolver {
       }
 
       Mutation mut = getMutation(lockInfo.entry.getKey().getRowData(), mutations);
-      // TODO may be better method to get col
-      Column col = SpanUtil.toRowColumn(lockInfo.entry.getKey()).getColumn();
+      Column col = ColumnUtil.convert(lockInfo.entry.getKey());
 
-      // TODO finish converting method to use lock info from here....
       if (lockInfo.isReadLock) {
-        // TODO could have a read lock on the trigger
-        boolean isTrigger = false;
-        ColumnUtil.commitColumn(env, isTrigger, false, col, false, false, true, lockTs, commitTs,
-            env.getConfiguredObservers().getObservedColumns(STRONG), mut);
+        ColumnUtil.commitColumn(env, false, false, col, false, false, true, lockTs, commitTs, env
+            .getConfiguredObservers().getObservedColumns(STRONG), mut);
       } else {
         LockValue lv = new LockValue(lockInfo.entry.getValue().get());
         ColumnUtil.commitColumn(env, lv.isTrigger(), false, col, lv.isWrite(), lv.isDelete(),

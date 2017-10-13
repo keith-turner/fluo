@@ -17,10 +17,10 @@ package org.apache.fluo.accumulo.util;
 
 import org.apache.accumulo.core.data.Key;
 
+import com.google.common.base.Preconditions;
+
 public class ReadLockUtil {
   private static final long DEL_MASK = 0x0000000000000001L;
-
-  // TODO code was copied from NotifyUtil
 
   public static boolean isDelete(Key k) {
     return isDelete(k.getTimestamp());
@@ -31,7 +31,7 @@ public class ReadLockUtil {
   }
 
   public static long encodeTs(long ts, boolean isDelete) {
-    // TODO check 1st three bits are 000
+    Preconditions.checkArgument((ts & ColumnConstants.PREFIX_MASK) == 0);
     return ts << 1 | (isDelete ? 1 : 0);
   }
 

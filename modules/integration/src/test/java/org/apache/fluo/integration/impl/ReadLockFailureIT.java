@@ -33,6 +33,7 @@ import org.apache.fluo.api.client.Snapshot;
 import org.apache.fluo.api.client.Transaction;
 import org.apache.fluo.api.client.TransactionBase;
 import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.data.RowColumn;
 import org.apache.fluo.api.data.RowColumnValue;
 import org.apache.fluo.api.data.Span;
 import org.apache.fluo.api.exceptions.CommitException;
@@ -210,6 +211,44 @@ public class ReadLockFailureIT extends ITBaseImpl {
     }
   }
 
+  @Test
+  public void testParallelScan2() throws Exception {
+
+    Column crCol = new Column("stat", "completionRatio");
+
+    try (Transaction tx = client.newTransaction()) {
+      tx.set("user5", crCol, "0.5");
+      tx.set("user6", crCol, "0.75");
+      tx.commit();
+    }
+
+    partiallyCommit(tx -> {
+      // get multiple read locks with a parallel scan
+        Map<RowColumn, String> ratios =
+            tx.withReadLock().gets(
+                Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
+
+
+        double cr1 = Double.parseDouble(ratios.get(new RowColumn("user5", crCol)));
+        double cr2 = Double.parseDouble(ratios.get(new RowColumn("user6", crCol)));
+
+        tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+      }, false);
+
+    retryTwice(tx -> {
+      Map<RowColumn, String> ratios =
+          tx.gets(Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
+
+      tx.set("user5", crCol, "0.51");
+      tx.set("user6", crCol, "0.76");
+    });
+
+    try (Snapshot snap = client.newSnapshot()) {
+      Assert.assertNull(snap.gets("org1", crCol));
+      Assert.assertEquals("0.51", snap.gets("user5", crCol));
+      Assert.assertEquals("0.76", snap.gets("user6", crCol));
+    }
+  }
 
   // TODO test time out rollback
 }

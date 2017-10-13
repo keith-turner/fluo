@@ -105,8 +105,7 @@ public class ParallelSnapshotScanner {
 
     if (rangesToScan.size() > 0) {
       scanner.setRanges(rangesToScan);
-      // TODO handle read locks
-      SnapshotScanner.setupScanner(scanner, Collections.<Column>emptySet(), startTs, false);
+      SnapshotScanner.setupScanner(scanner, Collections.<Column>emptySet(), startTs, true);
     } else if (rows != null) {
       List<Range> ranges = new ArrayList<>(rows.size());
 
