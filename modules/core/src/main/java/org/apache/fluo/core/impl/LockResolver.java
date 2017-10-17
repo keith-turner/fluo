@@ -186,7 +186,6 @@ public class LockResolver {
           numResolved += group.getValue().size();
           break;
         case LOCKED:
-          // TODO ensure primary is not read lock???
           if (rollbackPrimary(env, startTs, group.getKey(), txInfo.lockValue)) {
             rollback(env, startTs, group.getKey(), group.getValue(), mutations);
             numResolved += group.getValue().size();
