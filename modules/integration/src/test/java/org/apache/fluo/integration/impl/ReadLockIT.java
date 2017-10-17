@@ -498,6 +498,36 @@ public class ReadLockIT extends ITBaseImpl {
 
   @Test
   public void testOnlyReadLocks() {
-    // TODO test a transaction that only makes read locks... what should its behavior be????
+    try (Transaction tx = client.newTransaction()) {
+      tx.set("r1", new Column("q1", "f1"), "v1");
+      tx.set("r2", new Column("q1", "f1"), "v2");
+      tx.commit();
+    }
+
+    try (Transaction tx1 = client.newTransaction()) {
+      try (Transaction tx2 = client.newTransaction()) {
+        String v1 = tx2.withReadLock().gets("r1", new Column("q1", "f1"));
+        String v2 = tx2.withReadLock().gets("r2", new Column("q1", "f1"));
+
+        Assert.assertEquals("v1", v1);
+        Assert.assertEquals("v2", v2);
+
+        // commit should be a no-op because only read locks
+        tx2.commit();
+      }
+
+      tx1.set("r1", new Column("q1", "f1"), "v3");
+      tx1.set("r2", new Column("q1", "f1"), "v4");
+
+      // should not collide with read locks
+      tx1.commit();
+    }
+    try (Snapshot snap = client.newSnapshot()) {
+      String v1 = snap.gets("r1", new Column("q1", "f1"));
+      String v2 = snap.gets("r2", new Column("q1", "f1"));
+
+      Assert.assertEquals("v3", v1);
+      Assert.assertEquals("v4", v2);
+    }
   }
 }

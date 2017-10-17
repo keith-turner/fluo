@@ -926,7 +926,10 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       }
 
       if (primRow == null) {
-        // TODO nothing to do??? only read locks
+        // there are only read locks, so nothing to write
+        deleteWeakRow();
+        commitCallback.committed();
+        return;
       }
     }
 
