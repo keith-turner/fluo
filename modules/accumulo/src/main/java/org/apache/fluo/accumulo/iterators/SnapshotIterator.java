@@ -210,6 +210,7 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
     clearReadLock();
 
     // handle continue case
+    // TODO does not properly handle continue after read lock....
     hasTop = true;
     if (range.getStartKey() != null && range.getStartKey().getTimestamp() != Long.MAX_VALUE
         && !range.isStartKeyInclusive()) {

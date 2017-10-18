@@ -39,6 +39,7 @@ import com.google.common.collect.Sets;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.data.Key;
+import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.fluo.accumulo.format.FluoFormatter;
@@ -197,6 +198,14 @@ public class ReadLockIT extends ITBaseImpl {
     Assert.assertEquals(ImmutableSet.of("fred:jojo", "jojo:fred"), getDerivedEdges());
   }
 
+  private void dumpRow(String row, Consumer<String> out) throws TableNotFoundException {
+    Scanner scanner = conn.createScanner(getCurTableName(), Authorizations.EMPTY);
+    scanner.setRange(Range.exact(row));
+    for (Entry<Key, Value> entry : scanner) {
+      out.accept(FluoFormatter.toString(entry));
+    }
+  }
+
   private void dumpTable(Consumer<String> out) throws TableNotFoundException {
     Scanner scanner = conn.createScanner(getCurTableName(), Authorizations.EMPTY);
     for (Entry<Key, Value> entry : scanner) {
@@ -230,9 +239,9 @@ public class ReadLockIT extends ITBaseImpl {
   @Test
   public void testRandom() throws Exception {
     int numAliases = 75; // TODO
-    int numNodes = 100;
-    int numEdges = 1000;
-    int numAliasChanges = 25;
+    int numNodes = 10000; // TODO change to 100
+    int numEdges = 1000000; // TODO change to 1000
+    int numAliasChanges = 2500; // TODO change to 25
 
     Random rand = new Random();
 
@@ -264,7 +273,18 @@ public class ReadLockIT extends ITBaseImpl {
     List<Loader> loadOps = new ArrayList<>();
     for (String edge : edges) {
       String[] enodes = edge.split(":");
-      loadOps.add((tx, ctx) -> addEdge(tx, enodes[0], enodes[1]));
+      loadOps.add((tx, ctx) -> {
+        try {
+          addEdge(tx, enodes[0], enodes[1]);
+        } catch (NullPointerException e) {
+          // TOOD remove after finding bug
+          System.out.println(" en0 " + enodes[0] + " en1 " + enodes[1] + " start ts "
+              + tx.getStartTimestamp());
+          dumpRow("r:" + enodes[0], System.out::println);
+          dumpRow("r:" + enodes[1], System.out::println);
+          throw e;
+        }
+      });
     }
 
     Map<String, String> changes = new HashMap<>();
