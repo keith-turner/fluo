@@ -397,4 +397,26 @@ public class PrewriteIteratorTest {
     Assert.assertEquals(13, input.counter.nextCalls);
     Assert.assertEquals(0, output.data.size());
   }
+
+  @Test
+  public void testGarbageCollectedReadLocks() {
+    // After a partial compaction the garbage collection iterator will drop read lock entries, but
+    // not del_read_locks entries. This test ensures that prewrite works w/ this.
+
+    TestData input = new TestData();
+
+    input.add("0 f q DEL_RLOCK 42", "50");
+    input.add("0 f q DEL_RLOCK 44", "51");
+
+
+    TestData output = new TestData(newPI(input, 47), Range.exact("0", "f", "q"));
+    TestData expected = new TestData();
+
+    expected.add("0 f q DEL_RLOCK 44", "51");
+
+    Assert.assertEquals(expected, output);
+
+    output = new TestData(newPI(input, 43), Range.exact("0", "f", "q"));
+    Assert.assertEquals(expected, output);
+  }
 }
