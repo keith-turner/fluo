@@ -613,12 +613,16 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
       List<Entry<Key, Value>> openReadLocks = LockResolver.getOpenReadLocks(env, rowColsToCheck);
 
+      startTime = System.currentTimeMillis();
+
       while (!resolved) {
         resolved = LockResolver.resolveLocks(env, startTs, stats, openReadLocks, startTime);
         if (!resolved) {
           UtilWaitThread.sleep(waitTime);
           stats.incrementLockWaitTime(waitTime);
           waitTime = Math.min(SnapshotScanner.MAX_WAIT_TIME, waitTime * 2);
+
+          openReadLocks = LockResolver.getOpenReadLocks(env, rowColsToCheck);
         }
       }
     }

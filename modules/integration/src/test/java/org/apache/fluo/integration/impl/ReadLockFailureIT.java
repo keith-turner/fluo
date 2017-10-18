@@ -100,8 +100,8 @@ public class ReadLockFailureIT extends ITBaseImpl {
   }
 
 
-  private void partiallyCommit(Consumer<TransactionBase> action, boolean commitPrimary)
-      throws Exception {
+  private TransactorNode partiallyCommit(Consumer<TransactionBase> action, boolean commitPrimary,
+      boolean closeTransactor) throws Exception {
     TransactorNode t2 = new TransactorNode(env);
     TestTransaction tx2 = new TestTransaction(env, t2);
 
@@ -115,13 +115,14 @@ public class ReadLockFailureIT extends ITBaseImpl {
       Assert.assertTrue(tx2.commitPrimaryColumn(cd, commitTs));
     }
 
-    t2.close();
+    if (closeTransactor) {
+      t2.close();
+    }
+
+    return t2;
   }
 
-  // TODO test name
-  @Test
-  public void testBasicRollback() throws Exception {
-
+  private void testBasicRollback(boolean closeTransactor) throws Exception {
     try (Transaction tx = client.newTransaction()) {
       setAlias(tx, "node1", "bob");
       setAlias(tx, "node2", "joe");
@@ -134,7 +135,8 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    partiallyCommit(tx -> addEdge(tx, "node1", "node3"), false);
+    TransactorNode tn =
+        partiallyCommit(tx -> addEdge(tx, "node1", "node3"), false, closeTransactor);
 
     Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob"), getDerivedEdges());
 
@@ -145,10 +147,23 @@ public class ReadLockFailureIT extends ITBaseImpl {
     retryOnce(tx -> setAlias(tx, "node3", "alex"));
 
     Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby"), getDerivedEdges());
+
+    if (!closeTransactor) {
+      tn.close();
+    }
   }
 
   @Test
-  public void testBasicRollforward() throws Exception {
+  public void testBasicRollback1() throws Exception {
+    testBasicRollback(true);
+  }
+
+  @Test
+  public void testBasicRollback2() throws Exception {
+    testBasicRollback(false);
+  }
+
+  private void testBasicRollforward(boolean closeTransactor) throws Exception {
     try (Transaction tx = client.newTransaction()) {
       setAlias(tx, "node1", "bob");
       setAlias(tx, "node2", "joe");
@@ -161,7 +176,7 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    partiallyCommit(tx -> addEdge(tx, "node1", "node3"), true);
+    TransactorNode tn = partiallyCommit(tx -> addEdge(tx, "node1", "node3"), true, closeTransactor);
 
     retryOnce(tx -> setAlias(tx, "node1", "bobby"));
 
@@ -172,12 +187,23 @@ public class ReadLockFailureIT extends ITBaseImpl {
 
     Assert.assertEquals(ImmutableSet.of("bobby:joe", "joe:bobby", "bobby:alex", "alex:bobby"),
         getDerivedEdges());
+
+    if (!closeTransactor) {
+      tn.close();
+    }
   }
 
+  @Test
+  public void testBasicRollforward1() throws Exception {
+    testBasicRollforward(false);
+  }
 
   @Test
-  public void testParallelScan() throws Exception {
+  public void testBasicRollforward2() throws Exception {
+    testBasicRollforward(true);
+  }
 
+  private void testParallelScan(boolean closeTransactor) throws Exception {
     Column crCol = new Column("stat", "completionRatio");
 
     try (Transaction tx = client.newTransaction()) {
@@ -186,16 +212,17 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    partiallyCommit(tx -> {
-      // get multiple read locks with a parallel scan
-        Map<String, Map<Column, String>> ratios =
-            tx.withReadLock().gets(Arrays.asList("user5", "user6"), crCol);
+    TransactorNode tn =
+        partiallyCommit(tx -> {
+          // get multiple read locks with a parallel scan
+            Map<String, Map<Column, String>> ratios =
+                tx.withReadLock().gets(Arrays.asList("user5", "user6"), crCol);
 
-        double cr1 = Double.parseDouble(ratios.get("user5").get(crCol));
-        double cr2 = Double.parseDouble(ratios.get("user5").get(crCol));
+            double cr1 = Double.parseDouble(ratios.get("user5").get(crCol));
+            double cr2 = Double.parseDouble(ratios.get("user5").get(crCol));
 
-        tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
-      }, false);
+            tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+          }, false, closeTransactor);
 
     retryTwice(tx -> {
       Map<String, Map<Column, String>> ratios = tx.gets(Arrays.asList("user5", "user6"), crCol);
@@ -209,10 +236,25 @@ public class ReadLockFailureIT extends ITBaseImpl {
       Assert.assertEquals("0.51", snap.gets("user5", crCol));
       Assert.assertEquals("0.76", snap.gets("user6", crCol));
     }
+
+    if (!closeTransactor) {
+      tn.close();
+    }
+  }
+
+  @Test
+  public void testParallelScan1() throws Exception {
+    testParallelScan(true);
   }
 
   @Test
   public void testParallelScan2() throws Exception {
+    testParallelScan(false);
+  }
+
+  private void testParallelScanRC(boolean closeTransactor) throws Exception {
+    // currently get w/ RowColumn has a different code path than other gets that take multiple rows
+    // and columns
 
     Column crCol = new Column("stat", "completionRatio");
 
@@ -222,18 +264,19 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    partiallyCommit(tx -> {
-      // get multiple read locks with a parallel scan
-        Map<RowColumn, String> ratios =
-            tx.withReadLock().gets(
-                Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
+    TransactorNode tn =
+        partiallyCommit(tx -> {
+          // get multiple read locks with a parallel scan
+            Map<RowColumn, String> ratios =
+                tx.withReadLock().gets(
+                    Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
 
 
-        double cr1 = Double.parseDouble(ratios.get(new RowColumn("user5", crCol)));
-        double cr2 = Double.parseDouble(ratios.get(new RowColumn("user6", crCol)));
+            double cr1 = Double.parseDouble(ratios.get(new RowColumn("user5", crCol)));
+            double cr2 = Double.parseDouble(ratios.get(new RowColumn("user6", crCol)));
 
-        tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
-      }, false);
+            tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+          }, false, true);
 
     retryTwice(tx -> {
       Map<RowColumn, String> ratios =
@@ -248,6 +291,76 @@ public class ReadLockFailureIT extends ITBaseImpl {
       Assert.assertEquals("0.51", snap.gets("user5", crCol));
       Assert.assertEquals("0.76", snap.gets("user6", crCol));
     }
+
+    if (!closeTransactor) {
+      tn.close();
+    }
+  }
+
+  @Test
+  public void testParallelScanRC1() throws Exception {
+    testParallelScanRC(true);
+  }
+
+  @Test
+  public void testParallelScanRC2() throws Exception {
+    testParallelScanRC(false);
+  }
+
+  private void testWriteWoRead(boolean commitPrimary, boolean closeTransactor) throws Exception {
+    // Reads can cause locks to be recovered. This test the case of a transactions that only does a
+    // write to a field that has an open read lock.
+
+    try (Transaction tx = client.newTransaction()) {
+      tx.set("r1", new Column("f1", "q1"), "v1");
+      tx.set("r2", new Column("f1", "q1"), "v2");
+      tx.commit();
+    }
+
+    TransactorNode transactor = partiallyCommit(tx -> {
+      String v1 = tx.withReadLock().gets("r1", new Column("f1", "q1"));
+      String v2 = tx.withReadLock().gets("r2", new Column("f1", "q1"));
+
+      tx.set("r3", new Column("f1", "qa"), v1 + ":" + v2);
+    }, commitPrimary, closeTransactor);
+
+    // TODO open an issue... does not really need to retry in this case
+    retryOnce(tx -> {
+      tx.set("r1", new Column("f1", "q1"), "v3");
+    });
+
+    try (Transaction tx = client.newTransaction()) {
+      if (commitPrimary) {
+        Assert.assertEquals("v1:v2", tx.gets("r3", new Column("f1", "qa")));
+      } else {
+        Assert.assertNull(tx.gets("r3", new Column("f1", "qa")));
+      }
+      Assert.assertEquals("v3", tx.gets("r1", new Column("f1", "q1")));
+    }
+
+    if (!closeTransactor) {
+      transactor.close();
+    }
+  }
+
+  @Test
+  public void testWriteWoRead1() throws Exception {
+    testWriteWoRead(false, false);
+  }
+
+  @Test
+  public void testWriteWoRead2() throws Exception {
+    testWriteWoRead(false, true);
+  }
+
+  @Test
+  public void testWriteWoRead3() throws Exception {
+    testWriteWoRead(true, false);
+  }
+
+  @Test
+  public void testWriteWoRead4() throws Exception {
+    testWriteWoRead(true, true);
   }
 
   // TODO test time out rollback
