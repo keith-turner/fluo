@@ -48,17 +48,27 @@ public class TestData {
     data.putAll(td.data);
   }
 
-  TestData(SortedKeyValueIterator<Key, Value> iter, Range range) {
+  TestData(SortedKeyValueIterator<Key, Value> iter, Range range, boolean reseek) {
     try {
       iter.seek(range, new HashSet<ByteSequence>(), false);
 
       while (iter.hasTop()) {
         data.put(iter.getTopKey(), iter.getTopValue());
-        iter.next();
+        if (reseek) {
+          iter.seek(
+              new Range(iter.getTopKey(), false, range.getEndKey(), range.isEndKeyInclusive()),
+              new HashSet<ByteSequence>(), false);
+        } else {
+          iter.next();
+        }
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  TestData(SortedKeyValueIterator<Key, Value> iter, Range range) {
+    this(iter, range, false);
   }
 
   TestData(SortedKeyValueIterator<Key, Value> iter) {

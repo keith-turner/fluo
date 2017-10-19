@@ -32,6 +32,7 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.IteratorEnvironment;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
+import org.apache.accumulo.core.iterators.conf.ColumnUtil;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.values.WriteValue;
 
@@ -57,19 +58,26 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   private final Key curCol = new Key();
 
+  private Key readLockIgnore;
   private Key readLockKey;
   private Value readLockValue;
 
   private void rememberReadLock(Key key, Value val) {
     Preconditions.checkState(readLockKey == null && readLockValue == null);
+    if (readLockIgnore == null || !key.equals(readLockIgnore, PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
+      readLockKey = new Key(key);
+      readLockValue = new Value(val);
+    }
+  }
 
-    readLockKey = new Key(key);
-    readLockValue = new Value(val);
+  private void ignoreReadLock(Key key) {
+    readLockIgnore = key;
   }
 
   private void clearReadLock() {
     readLockKey = null;
     readLockValue = null;
+    readLockIgnore = null;
   }
 
   private void findTop() throws IOException {
@@ -214,12 +222,21 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
     hasTop = true;
     if (range.getStartKey() != null && range.getStartKey().getTimestamp() != Long.MAX_VALUE
         && !range.isStartKeyInclusive()) {
-      Key nextCol = range.getStartKey().followingKey(PartialKey.ROW_COLFAM_COLQUAL_COLVIS);
-      if (range.afterEndKey(nextCol)) {
-        hasTop = false;
-        return;
+
+      if ((range.getStartKey().getTimestamp() & ColumnConstants.PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
+        Key currCol = new Key(range.getStartKey());
+        currCol.setTimestamp(Long.MAX_VALUE);
+        newRange = new Range(currCol, true, range.getEndKey(), range.isEndKeyInclusive());
+        ignoreReadLock(currCol);
       } else {
-        newRange = new Range(nextCol, true, range.getEndKey(), range.isEndKeyInclusive());
+
+        Key nextCol = range.getStartKey().followingKey(PartialKey.ROW_COLFAM_COLQUAL_COLVIS);
+        if (range.afterEndKey(nextCol)) {
+          hasTop = false;
+          return;
+        } else {
+          newRange = new Range(nextCol, true, range.getEndKey(), range.isEndKeyInclusive());
+        }
       }
     } else {
       newRange = range;

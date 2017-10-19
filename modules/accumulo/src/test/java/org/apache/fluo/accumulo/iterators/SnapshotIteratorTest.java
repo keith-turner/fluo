@@ -62,13 +62,11 @@ public class SnapshotIteratorTest {
     TestData output = new TestData(newSI(input, 6));
     Assert.assertEquals(0, output.data.size());
 
-    output = new TestData(newSI(input, 11));
     TestData expected = new TestData().add("0 f q DATA 9", "14");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 11);
 
-    output = new TestData(newSI(input, 17));
     expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 17);
   }
 
   @Test
@@ -86,13 +84,11 @@ public class SnapshotIteratorTest {
     output = new TestData(newSI(input, 15));
     Assert.assertEquals(0, output.data.size());
 
-    output = new TestData(newSI(input, 17));
     TestData expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 17);
 
-    output = new TestData(newSI(input, 22));
     expected = new TestData().add("0 f q LOCK 21", "1 f q");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 22);
   }
 
   @Test
@@ -116,13 +112,11 @@ public class SnapshotIteratorTest {
     output = new TestData(newSI(input, 15));
     Assert.assertEquals(0, output.data.size());
 
-    output = new TestData(newSI(input, 17));
     TestData expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 17);
 
-    output = new TestData(newSI(input, 23));
     expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 23);
 
 
     // test case where there is newer lock thats not invalidated by DEL_LOCK
@@ -138,17 +132,14 @@ public class SnapshotIteratorTest {
     output = new TestData(newSI(input, 6));
     Assert.assertEquals(0, output.data.size());
 
-    output = new TestData(newSI(input, 17));
     expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 17);
 
-    output = new TestData(newSI(input, 19));
     expected = new TestData().add("0 f q DATA 11", "15");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 19);
 
-    output = new TestData(newSI(input, 23));
     expected = new TestData().add("0 f q LOCK 21", "1 f q");
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 23);
   }
 
   @Test
@@ -282,11 +273,18 @@ public class SnapshotIteratorTest {
     expected.add("2 f q DATA 11", "17");
     expected.add("2 f q DEL_RLOCK 5", "6");
 
-    TestData output = new TestData(newSI(input, 20), new Range());
-
-    Assert.assertEquals(expected, output);
+    checkInput(input, expected, 20);
   }
 
+  private void checkInput(TestData input, TestData expected, long startTs) {
+    // run test with a single seek followed by many next calls
+    TestData output = new TestData(newSI(input, startTs), new Range());
+    Assert.assertEquals(expected, output);
+
+    // run test reseeking after each key
+    output = new TestData(newSI(input, startTs), new Range(), true);
+    Assert.assertEquals(expected, output);
+  }
 
   private void checkManyColumnData(TestData input, int numToWrite, Range range) throws IOException {
     for (int i = numToWrite * 3 - 1; i > 3; i -= 3) {

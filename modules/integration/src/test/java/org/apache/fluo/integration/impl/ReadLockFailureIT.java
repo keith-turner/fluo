@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.data.Key;
@@ -363,5 +364,69 @@ public class ReadLockFailureIT extends ITBaseImpl {
     testWriteWoRead(true, true);
   }
 
-  // TODO test time out rollback
+  private int countInTable(String str) throws TableNotFoundException {
+    int count = 0;
+    Scanner scanner = conn.createScanner(table, Authorizations.EMPTY);
+    for (String e : Iterables.transform(scanner, FluoFormatter::toString)) {
+      if (e.contains(str)) {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  @Test
+  public void testFailDeletesReadLocks() throws Exception {
+    try (Transaction tx = client.newTransaction()) {
+      for (int i = 0; i < 20; i++) {
+        tx.set("r-" + i, new Column("f1", "q1"), "" + i);
+      }
+
+      tx.commit();
+    }
+
+    long startTs = 0;
+
+    try (Transaction tx1 = client.newTransaction()) {
+      tx1.set("r-5", new Column("f1", "q1"), "9");
+      try (Transaction tx2 = client.newTransaction()) {
+        tx1.commit();
+
+        int sum = 0;
+        for (int i = 0; i < 20; i++) {
+          sum += Integer.parseInt(tx2.withReadLock().gets("r-" + i, new Column("f1", "q1")));
+        }
+
+        tx2.set("sum1", new Column("f", "s"), "" + sum);
+        startTs = tx2.getStartTimestamp();
+        tx2.commit();
+        Assert.fail();
+      } catch (CommitException e) {
+
+      }
+    }
+
+    try (Snapshot snapshot = client.newSnapshot()) {
+      Assert.assertNull(snapshot.gets("sum1", new Column("f", "s")));
+    }
+
+    // ensure the failed tx deleted its read locks....
+    Assert.assertEquals(19, countInTable(startTs + "-RLOCK"));
+    Assert.assertEquals(19, countInTable(startTs + "-DEL_RLOCK"));
+
+    try (Transaction tx = client.newTransaction()) {
+      int sum = 0;
+      for (int i = 0; i < 20; i++) {
+        sum += Integer.parseInt(tx.withReadLock().gets("r-" + i, new Column("f1", "q1")));
+      }
+
+      tx.set("sum1", new Column("f", "s"), "" + sum);
+      tx.commit();
+    }
+
+    try (Snapshot snapshot = client.newSnapshot()) {
+      Assert.assertEquals("194", snapshot.gets("sum1", new Column("f", "s")));
+    }
+  }
 }

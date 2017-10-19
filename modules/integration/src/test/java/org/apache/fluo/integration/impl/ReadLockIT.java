@@ -238,16 +238,14 @@ public class ReadLockIT extends ITBaseImpl {
 
   @Test
   public void testRandom() throws Exception {
-    int numAliases = 75; // TODO
-    int numNodes = 10000; // TODO change to 100
-    int numEdges = 1000000; // TODO change to 1000
-    int numAliasChanges = 2500; // TODO change to 25
+    int numNodes = 100;
+    int numEdges = 1000;
+    int numAliasChanges = 25;
 
     Random rand = new Random();
 
     Map<String, String> nodes = new HashMap<>();
     while (nodes.size() < numNodes) {
-      // TODO have some nodes with same alias
       nodes.put(String.format("n-%09d", rand.nextInt(1000000000)),
           String.format("a-%09d", rand.nextInt(1000000000)));
     }
