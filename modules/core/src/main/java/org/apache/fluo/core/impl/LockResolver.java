@@ -230,6 +230,7 @@ public class LockResolver {
             DelLockValue.encodeRollback(false, true));
       }
     }
+
   }
 
   private static boolean rollbackPrimary(Environment env, long startTs, PrimaryRowColumn prc,
@@ -284,6 +285,7 @@ public class LockResolver {
             lockTs, commitTs, env.getConfiguredObservers().getObservedColumns(STRONG), mut);
       }
     }
+
   }
 
   private static Mutation getMutation(ByteSequence row, Map<ByteSequence, Mutation> mutations) {

@@ -820,6 +820,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
     protected abstract void onSuccess(CommitData cd, V result) throws Exception;
 
+
     @Override
     public void onFailure(Throwable t) {
       cd.commitObserver.failed(t);
@@ -1101,7 +1102,6 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
               DelLockValue.encodeRollback(false, true));
         }
       }
-
       mutations.add(m);
     }
 
@@ -1302,6 +1302,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
       mutations.add(m);
     }
+
 
     ListenableFuture<Void> future =
         env.getSharedResources().getBatchWriter().writeMutationsAsyncFuture(mutations);

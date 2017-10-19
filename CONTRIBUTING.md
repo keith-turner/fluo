@@ -34,11 +34,16 @@ Fluo has a test suite that consists of the following:
 *  Integration tests which are run using `mvn verify`. These tests start a local Fluo instance
    (called MiniFluo) and run against it.
 
+## Pull Request
+
+Before making a pull request please attempt to run `mvn verify`.  If it fails and you are not sure 
+why, it's OK to go ahead and make the pull request.
+
 ## See Also
 
 * [How to Contribute][contribute] on Apache Fluo project website
 
-[Git]: http://git-scm.com/
+[Git]: https://git-scm.com/
 [java]: http://openjdk.java.net/
-[Maven]: http://maven.apache.org/
+[Maven]: https://maven.apache.org/
 [contribute]: https://fluo.apache.org/how-to-contribute/
