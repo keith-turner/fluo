@@ -23,13 +23,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-import org.apache.fluo.api.data.Bytes;
-import org.apache.fluo.api.data.Column;
-import org.apache.fluo.api.data.RowColumn;
-
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import org.apache.fluo.api.data.Bytes;
+import org.apache.fluo.api.data.Column;
+import org.apache.fluo.api.data.RowColumn;
 
 /**
  * This class provides default implementations for many of the classes in SnapshotBase. It exists to

@@ -15,9 +15,8 @@
 
 package org.apache.fluo.accumulo.util;
 
-import org.apache.accumulo.core.data.Key;
-
 import com.google.common.base.Preconditions;
+import org.apache.accumulo.core.data.Key;
 
 public class ReadLockUtil {
   private static final long DEL_MASK = 0x0000000000000001L;

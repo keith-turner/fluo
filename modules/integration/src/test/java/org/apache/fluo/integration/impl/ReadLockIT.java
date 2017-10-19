@@ -80,15 +80,16 @@ public class ReadLockIT extends ITBaseImpl {
   static void addEdge(TransactionBase tx, String node1, String node2) {
     Map<String, Map<Column, String>> aliases =
         tx.withReadLock().gets(asList("r:" + node1, "r:" + node2), ALIAS_COL); // TODO need to test
-                                                                               // all get
-                                                                               // methods
+                                                                                                                      // all get
+                                                                                                                          // methods
     String alias1 = aliases.get("r:" + node1).get(ALIAS_COL);
     String alias2 = aliases.get("r:" + node2).get(ALIAS_COL);
 
     addEdge(tx, node1, node2, alias1, alias2);
   }
 
-  static void addEdge(TransactionBase tx, String node1, String node2, String alias1, String alias2) {
+  static void addEdge(TransactionBase tx, String node1, String node2, String alias1,
+      String alias2) {
     tx.set("d:" + alias1 + ":" + alias2, new Column("edge", node1 + ":" + node2), "");
     tx.set("d:" + alias2 + ":" + alias1, new Column("edge", node2 + ":" + node1), "");
 
@@ -276,8 +277,8 @@ public class ReadLockIT extends ITBaseImpl {
           addEdge(tx, enodes[0], enodes[1]);
         } catch (NullPointerException e) {
           // TOOD remove after finding bug
-          System.out.println(" en0 " + enodes[0] + " en1 " + enodes[1] + " start ts "
-              + tx.getStartTimestamp());
+          System.out.println(
+              " en0 " + enodes[0] + " en1 " + enodes[1] + " start ts " + tx.getStartTimestamp());
           dumpRow("r:" + enodes[0], System.out::println);
           dumpRow("r:" + enodes[1], System.out::println);
           throw e;
@@ -497,9 +498,8 @@ public class ReadLockIT extends ITBaseImpl {
     ensureReadLocksSet(txr -> {
       // ensure this operation sets two read locks
       Map<RowColumn, String> vals =
-          txr.withReadLock().gets(
-              ImmutableList.of(new RowColumn("test1", c1), new RowColumn("test1", c2),
-                  new RowColumn("test2", c1), new RowColumn("test2", c2)));
+          txr.withReadLock().gets(ImmutableList.of(new RowColumn("test1", c1),
+              new RowColumn("test1", c2), new RowColumn("test2", c1), new RowColumn("test2", c2)));
       txr.set(vals.get(new RowColumn("test1", c1)), invCol, "test1");
       txr.set(vals.get(new RowColumn("test1", c2)), invCol, "test1");
       txr.set(vals.get(new RowColumn("test2", c1)), invCol, "test2");

@@ -66,8 +66,8 @@ public class ParallelSnapshotScanner {
     this.readLocksSeen = readLocksSeen;
   }
 
-  ParallelSnapshotScanner(Collection<RowColumn> cells, Environment env, long startTs,
-      TxStats stats, Map<Bytes, Set<Column>> readLocksSeen) {
+  ParallelSnapshotScanner(Collection<RowColumn> cells, Environment env, long startTs, TxStats stats,
+      Map<Bytes, Set<Column>> readLocksSeen) {
     for (RowColumn rc : cells) {
       byte[] r = rc.getRow().toArray();
       byte[] cf = rc.getColumn().getFamily().toArray();

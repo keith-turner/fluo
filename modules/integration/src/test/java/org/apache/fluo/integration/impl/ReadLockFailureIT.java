@@ -39,8 +39,8 @@ import org.apache.fluo.api.data.RowColumnValue;
 import org.apache.fluo.api.data.Span;
 import org.apache.fluo.api.exceptions.CommitException;
 import org.apache.fluo.core.impl.TransactionImpl.CommitData;
-import org.apache.fluo.core.oracle.Stamp;
 import org.apache.fluo.core.impl.TransactorNode;
+import org.apache.fluo.core.oracle.Stamp;
 import org.apache.fluo.integration.ITBaseImpl;
 import org.apache.fluo.integration.TestTransaction;
 import org.junit.Assert;
@@ -213,17 +213,16 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    TransactorNode tn =
-        partiallyCommit(tx -> {
-          // get multiple read locks with a parallel scan
-            Map<String, Map<Column, String>> ratios =
-                tx.withReadLock().gets(Arrays.asList("user5", "user6"), crCol);
+    TransactorNode tn = partiallyCommit(tx -> {
+      // get multiple read locks with a parallel scan
+      Map<String, Map<Column, String>> ratios =
+          tx.withReadLock().gets(Arrays.asList("user5", "user6"), crCol);
 
-            double cr1 = Double.parseDouble(ratios.get("user5").get(crCol));
-            double cr2 = Double.parseDouble(ratios.get("user5").get(crCol));
+      double cr1 = Double.parseDouble(ratios.get("user5").get(crCol));
+      double cr2 = Double.parseDouble(ratios.get("user5").get(crCol));
 
-            tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
-          }, false, closeTransactor);
+      tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+    }, false, closeTransactor);
 
     retryTwice(tx -> {
       Map<String, Map<Column, String>> ratios = tx.gets(Arrays.asList("user5", "user6"), crCol);
@@ -265,19 +264,17 @@ public class ReadLockFailureIT extends ITBaseImpl {
       tx.commit();
     }
 
-    TransactorNode tn =
-        partiallyCommit(tx -> {
-          // get multiple read locks with a parallel scan
-            Map<RowColumn, String> ratios =
-                tx.withReadLock().gets(
-                    Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
+    TransactorNode tn = partiallyCommit(tx -> {
+      // get multiple read locks with a parallel scan
+      Map<RowColumn, String> ratios = tx.withReadLock()
+          .gets(Arrays.asList(new RowColumn("user5", crCol), new RowColumn("user6", crCol)));
 
 
-            double cr1 = Double.parseDouble(ratios.get(new RowColumn("user5", crCol)));
-            double cr2 = Double.parseDouble(ratios.get(new RowColumn("user6", crCol)));
+      double cr1 = Double.parseDouble(ratios.get(new RowColumn("user5", crCol)));
+      double cr2 = Double.parseDouble(ratios.get(new RowColumn("user6", crCol)));
 
-            tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
-          }, false, true);
+      tx.set("org1", crCol, (cr1 + cr2) / 2 + "");
+    }, false, true);
 
     retryTwice(tx -> {
       Map<RowColumn, String> ratios =

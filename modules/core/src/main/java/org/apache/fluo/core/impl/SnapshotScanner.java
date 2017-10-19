@@ -178,7 +178,7 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
           numRead++;
 
           if (numRead > 100 || amountRead > 1 << 12) { // TODO should counts be adjusted since read
-                                                       // locks may now be seen
+                                                         // locks may now be seen
             break;
           }
         }

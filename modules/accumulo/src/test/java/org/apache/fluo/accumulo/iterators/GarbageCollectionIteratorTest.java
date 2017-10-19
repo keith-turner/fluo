@@ -631,7 +631,8 @@ public class GarbageCollectionIteratorTest {
     input.add("0 f q RLOCK 47", "0 f q");
     input.add("0 f q RLOCK 40", "0 f q");
 
-    for (long oldestActiveTs : new long[] {20, 40, 42, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 70}) {
+    for (long oldestActiveTs : new long[] {20, 40, 42, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,
+        70}) {
       TestData expected = new TestData();
       expected.add("0 f q RLOCK 47", "0 f q");
       expected.add("0 f q RLOCK 40", "0 f q");

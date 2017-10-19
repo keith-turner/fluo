@@ -45,8 +45,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt"; // TODO unit test this option
 
-  private static final ByteSequence NOTIFY_CF_BS = new ArrayByteSequence(
-      ColumnConstants.NOTIFY_CF.toArray());
+  private static final ByteSequence NOTIFY_CF_BS =
+      new ArrayByteSequence(ColumnConstants.NOTIFY_CF.toArray());
 
   static final Set<ByteSequence> NOTIFY_CF_SET = Collections.singleton(NOTIFY_CF_BS);
 
@@ -64,7 +64,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
 
   private void rememberReadLock(Key key, Value val) {
     Preconditions.checkState(readLockKey == null && readLockValue == null);
-    if (readLockIgnore == null || !key.equals(readLockIgnore, PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
+    if (readLockIgnore == null
+        || !key.equals(readLockIgnore, PartialKey.ROW_COLFAM_COLQUAL_COLVIS)) {
       readLockKey = new Key(key);
       readLockValue = new Value(val);
     }
@@ -223,7 +224,8 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
     if (range.getStartKey() != null && range.getStartKey().getTimestamp() != Long.MAX_VALUE
         && !range.isStartKeyInclusive()) {
 
-      if ((range.getStartKey().getTimestamp() & ColumnConstants.PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
+      if ((range.getStartKey().getTimestamp()
+          & ColumnConstants.PREFIX_MASK) == ColumnConstants.RLOCK_PREFIX) {
         Key currCol = new Key(range.getStartKey());
         currCol.setTimestamp(Long.MAX_VALUE);
         newRange = new Range(currCol, true, range.getEndKey(), range.isEndKeyInclusive());

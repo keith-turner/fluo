@@ -52,9 +52,9 @@ public class ColumnUtil {
     return env.getSharedResources().getVisCache().getCV(col);
   }
 
-  public static void commitColumn(Environment env, boolean isTrigger, boolean isPrimary,
-      Column col, boolean isWrite, boolean isDelete, boolean isReadlock, long startTs,
-      long commitTs, Set<Column> observedColumns, Mutation m) {
+  public static void commitColumn(Environment env, boolean isTrigger, boolean isPrimary, Column col,
+      boolean isWrite, boolean isDelete, boolean isReadlock, long startTs, long commitTs,
+      Set<Column> observedColumns, Mutation m) {
     if (isReadlock) {
       Flutation.put(env, m, col,
           ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(startTs, true),
