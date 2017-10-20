@@ -40,7 +40,6 @@ import static org.apache.fluo.accumulo.util.ColumnConstants.WRITE_PREFIX;
 
 public class OpenReadLockIterator implements SortedKeyValueIterator<Key, Value> {
 
-  // TODO unit test
   private TimestampSkippingIterator source;
 
   private Key lastDelete;

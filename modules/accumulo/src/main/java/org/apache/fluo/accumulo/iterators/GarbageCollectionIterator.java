@@ -281,8 +281,6 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
         }
 
         if (keep) {
-          // TODO could possibly be a lot of these... could compress this info to a list of
-          // longs....
           keys.add(new KeyValue(source.getTopKey(), source.getTopValue()));
         }
       } else if (colType == ColumnConstants.LOCK_PREFIX) {
