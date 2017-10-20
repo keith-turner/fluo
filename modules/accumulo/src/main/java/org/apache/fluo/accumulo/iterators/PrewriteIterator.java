@@ -141,7 +141,6 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
 
         source.skipToPrefix(seekRange.getStartKey(), ColumnConstants.DEL_LOCK_PREFIX);
       } else if (colType == ColumnConstants.DEL_LOCK_PREFIX) {
-        // TODO may be able to process rollback differently!
         if (ts > invalidationTime) {
           invalidationTime = ts;
 
@@ -161,23 +160,20 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
         long lastDeleteTs = -1;
         long rlts = ReadLockUtil.decodeTs(ts);
 
-        // TODO should this set invalidationTime??
-        // TODO add support for declaring a range to be lock free..(could base this on gc
-        // timestamp)...
-
         if (!readlock) {
           while (rlts > invalidationTime && colType == ColumnConstants.RLOCK_PREFIX) {
             if (ReadLockUtil.isDelete(ts)) {
-              // TODO consider rollback
               if (rlts >= snaptime) {
                 hasTop = true;
                 return;
               } else {
-                long rlockCommitTs =
-                    DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
-                if (rlockCommitTs > snaptime) {
-                  hasTop = true;
-                  return;
+                if (!DelReadLockValue.isRollback(source.getTopValue().get())) {
+                  long rlockCommitTs =
+                      DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+                  if (rlockCommitTs > snaptime) {
+                    hasTop = true;
+                    return;
+                  }
                 }
               }
 

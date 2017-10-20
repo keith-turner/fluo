@@ -19,18 +19,26 @@ import org.apache.fluo.accumulo.util.ByteArrayUtil;
 
 public class DelReadLockValue {
 
-  long commitTs;
+  long commitTs = -1;
   boolean rollback;
 
   public DelReadLockValue(byte[] value) {
-    this.commitTs = getCommitTimestamp(value);
     this.rollback = isRollback(value);
+    if (!this.rollback) {
+      this.commitTs = getCommitTimestamp(value);
+    }
   }
 
-  // TODO maybe rollback does not need a commit ts
-  public static byte[] encode(long commitTs, boolean isRollback) {
+
+  public static byte[] encodeRollback() {
+    byte[] ba = new byte[1];
+    ba[0] = (byte) 1;
+    return ba;
+  }
+
+  public static byte[] encodeCommit(long commitTs) {
     byte[] ba = new byte[9];
-    ba[0] = (byte) (isRollback ? 1 : 0);
+    ba[0] = (byte) 0;
     ByteArrayUtil.encode(ba, 1, commitTs);
     return ba;
   }

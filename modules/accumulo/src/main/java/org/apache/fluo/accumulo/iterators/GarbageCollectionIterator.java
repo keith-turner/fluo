@@ -268,14 +268,20 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
         if (rlts > invalidationTime) {
           if (isFullMajc) {
             if (isDelete) {
-              long rlockCommitTs = DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+
+              long rlockCommitTs;
+              if (DelReadLockValue.isRollback(source.getTopValue().get())) {
+                //TODO test and think about this case... quickly made this change on Fri...
+                rlockCommitTs = rlts;
+              } else {
+                rlockCommitTs = DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+              }
               keep = rlockCommitTs >= gcTimestamp;
             } else {
               keep = lastReadLockDeleteTs != rlts;
             }
           } else {
-            // can drop deleted read lock entries.. keep the delete entry.. TODO test prewiter iter
-            // for this case (del read lock, but no read lock)....
+            // can drop deleted read lock entries.. keep the delete entry.
             keep = isDelete || lastReadLockDeleteTs != rlts;
           }
         }

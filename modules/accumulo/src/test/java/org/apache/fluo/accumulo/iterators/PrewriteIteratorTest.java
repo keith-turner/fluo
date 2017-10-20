@@ -330,6 +330,30 @@ public class PrewriteIteratorTest {
   }
 
   @Test
+  public void testOnlyDelReadLocks() {
+    //Garbage collection iter may drop read locks and leave del_read_lock entries.  Ensure this case works as expected.
+    TestData input = new TestData();
+    input.add("0 f q DEL_RLOCK 42", "50");
+    input.add("0 f q DEL_RLOCK 39", "44");
+
+    input.add("0 f q WRITE 10", "5");
+    input.add("0 f q LOCK 5", "0 f q");
+    input.add("0 f q DATA 5", "15");
+
+    for (long startTs : new long[] {31, 40, 47}) {
+      TestData expected = new TestData();
+      expected.add("0 f q DEL_RLOCK 42", "50");
+
+      TestData output = new TestData(newPI(input, startTs), Range.exact("0", "f", "q"));
+
+      Assert.assertEquals(expected, output);
+    }
+
+    TestData output = new TestData(newPI(input, 55), Range.exact("0", "f", "q"));
+    Assert.assertEquals(0, output.data.size());
+  }
+
+  @Test
   public void testWriteLockPreventsReadLock() {
     for (int i = 0; i < 2; i++) {
       TestData input = new TestData();
@@ -419,4 +443,6 @@ public class PrewriteIteratorTest {
     output = new TestData(newPI(input, 43), Range.exact("0", "f", "q"));
     Assert.assertEquals(expected, output);
   }
+
+  //TODO test that aborted del rlock does not prevent write
 }

@@ -67,8 +67,6 @@ public class ReadLockFailureIT extends ITBaseImpl {
     return derivedEdges;
   }
 
-  // TODO test that parallel scans get info on cols with locks
-
   private void expectCommitException(Consumer<Transaction> retryAction) {
     try (Transaction tx = client.newTransaction()) {
       retryAction.accept(tx);

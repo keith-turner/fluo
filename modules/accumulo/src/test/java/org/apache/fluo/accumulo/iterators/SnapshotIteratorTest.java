@@ -31,11 +31,11 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class SnapshotIteratorTest {
-  SnapshotIterator newSI(TestData input, long startTs) {
+  SnapshotIterator newSI(TestData input, long startTs, boolean returnReadLocks) {
     SnapshotIterator si = new SnapshotIterator();
 
     Map<String, String> options = new HashMap<>();
-    options.put(SnapshotIterator.RETURN_READLOCK_PRESENT_OPT, "true");// TODO make cfg
+    options.put(SnapshotIterator.RETURN_READLOCK_PRESENT_OPT, returnReadLocks + "");
     options.put(SnapshotIterator.TIMESTAMP_OPT, startTs + "");
 
     IteratorEnvironment env = TestIteratorEnv.create(IteratorScope.scan, true);
@@ -47,6 +47,10 @@ public class SnapshotIteratorTest {
       throw new RuntimeException(e);
     }
     return si;
+  }
+
+  SnapshotIterator newSI(TestData input, long startTs) {
+    return newSI(input, startTs, true);
   }
 
   @Test
@@ -267,21 +271,31 @@ public class SnapshotIteratorTest {
 
     TestData expected = new TestData();
     expected.add("0 f q DATA 11", "15");
-    expected.add("0 f q DEL_RLOCK 5", "6");
     expected.add("1 f q DATA 11", "15");
     expected.add("2 f q DATA 11", "17");
+
+
+    checkInput(input, expected, 20, false);
+
+    expected.add("0 f q DEL_RLOCK 5", "6");
     expected.add("2 f q DEL_RLOCK 5", "6");
 
     checkInput(input, expected, 20);
+
   }
 
   private void checkInput(TestData input, TestData expected, long startTs) {
+    checkInput(input, expected, startTs, true);
+  }
+
+  private void checkInput(TestData input, TestData expected, long startTs,
+      boolean returnReadLocks) {
     // run test with a single seek followed by many next calls
-    TestData output = new TestData(newSI(input, startTs), new Range());
+    TestData output = new TestData(newSI(input, startTs, returnReadLocks), new Range());
     Assert.assertEquals(expected, output);
 
     // run test reseeking after each key
-    output = new TestData(newSI(input, startTs), new Range(), true);
+    output = new TestData(newSI(input, startTs, returnReadLocks), new Range(), true);
     Assert.assertEquals(expected, output);
   }
 

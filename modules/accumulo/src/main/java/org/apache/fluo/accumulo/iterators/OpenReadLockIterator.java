@@ -127,8 +127,7 @@ public class OpenReadLockIterator implements SortedKeyValueIterator<Key, Value> 
 
   @Override
   public SortedKeyValueIterator<Key, Value> deepCopy(IteratorEnvironment env) {
-    // TODO Auto-generated method stub
-    return null;
+    throw new UnsupportedOperationException();
   }
 
 }

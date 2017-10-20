@@ -32,7 +32,6 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.IteratorEnvironment;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
-import org.apache.accumulo.core.iterators.conf.ColumnUtil;
 import org.apache.fluo.accumulo.util.ColumnConstants;
 import org.apache.fluo.accumulo.values.WriteValue;
 
@@ -41,7 +40,7 @@ public class SnapshotIterator implements SortedKeyValueIterator<Key, Value> {
   @VisibleForTesting
   static final String TIMESTAMP_OPT = "timestampOpt";
 
-  static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt"; // TODO unit test this option
+  static final String RETURN_READLOCK_PRESENT_OPT = "rrlpOpt";
 
   private static final ByteSequence NOTIFY_CF_BS =
       new ArrayByteSequence(ColumnConstants.NOTIFY_CF.toArray());

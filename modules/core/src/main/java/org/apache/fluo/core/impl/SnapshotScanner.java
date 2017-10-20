@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.accumulo.core.client.IteratorSetting;
@@ -74,6 +75,7 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
   private final Environment env;
   private final TxStats stats;
   private final Opts config;
+  private Consumer<Entry<Key, Value>> locksSeen;
 
   static final long INITIAL_WAIT_TIME = 50;
   // TODO make configurable
@@ -153,6 +155,8 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
 
       // read ahead a little bit looking for other locks to resolve
 
+      locksSeen.accept(lockEntry);
+
       long startTime = System.currentTimeMillis();
       long waitTime = INITIAL_WAIT_TIME;
 
@@ -172,13 +176,13 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
 
           if (colType == ColumnConstants.LOCK_PREFIX) {
             locks.add(entry);
+            locksSeen.accept(lockEntry);
           }
 
           amountRead += entry.getKey().getSize() + entry.getValue().getSize();
           numRead++;
 
-          if (numRead > 100 || amountRead > 1 << 12) { // TODO should counts be adjusted since read
-                                                         // locks may now be seen
+          if (numRead > 100 || amountRead > 1 << 12) {
             break;
           }
         }
@@ -238,11 +242,13 @@ public class SnapshotScanner implements Iterable<Entry<Key, Value>> {
     }
   }
 
-  SnapshotScanner(Environment env, Opts config, long startTs, TxStats stats) {
+  SnapshotScanner(Environment env, Opts config, long startTs, TxStats stats,
+      Consumer<Entry<Key, Value>> locksSeen) {
     this.env = env;
     this.config = config;
     this.startTs = startTs;
     this.stats = stats;
+    this.locksSeen = locksSeen;
   }
 
   @Override

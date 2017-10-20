@@ -137,9 +137,13 @@ public class TestData {
       case "DEL_RLOCK":
         ts = ReadLockUtil.encodeTs(ts, true);
         ts |= ColumnConstants.RLOCK_PREFIX;
-        long commitTs = Long.parseLong(value.split("\\s+")[0]);
-        val = DelReadLockValue.encode(commitTs,
-            value.contains("ROLLBACK") || value.contains("ABORT"));
+
+        if (value.contains("ROLLBACK") || value.contains("ABORT")) {
+          val = DelReadLockValue.encodeRollback();
+        } else {
+          long commitTs = Long.parseLong(value.split("\\s+")[0]);
+          val = DelReadLockValue.encodeCommit(commitTs);
+        }
         break;
       case "ntfy":
         break;

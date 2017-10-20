@@ -79,9 +79,7 @@ public class ReadLockIT extends ITBaseImpl {
 
   static void addEdge(TransactionBase tx, String node1, String node2) {
     Map<String, Map<Column, String>> aliases =
-        tx.withReadLock().gets(asList("r:" + node1, "r:" + node2), ALIAS_COL); // TODO need to test
-                                                                                                                      // all get
-                                                                                                                          // methods
+        tx.withReadLock().gets(asList("r:" + node1, "r:" + node2), ALIAS_COL);
     String alias1 = aliases.get("r:" + node1).get(ALIAS_COL);
     String alias2 = aliases.get("r:" + node2).get(ALIAS_COL);
 

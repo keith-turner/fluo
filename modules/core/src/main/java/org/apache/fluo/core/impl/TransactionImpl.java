@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -76,6 +77,7 @@ import org.apache.fluo.core.exceptions.AlreadyAcknowledgedException;
 import org.apache.fluo.core.exceptions.StaleScanException;
 import org.apache.fluo.core.impl.scanner.ScannerBuilderImpl;
 import org.apache.fluo.core.oracle.Stamp;
+import org.apache.fluo.core.util.ByteUtil;
 import org.apache.fluo.core.util.ColumnUtil;
 import org.apache.fluo.core.util.ConditionalFlutation;
 import org.apache.fluo.core.util.FluoCondition;
@@ -125,8 +127,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   private final Set<Column> observedColumns;
   private final Environment env;
   private final Map<Bytes, Set<Column>> columnsRead = new HashMap<>();
-  // Tracks row columns that were observed to have had a read lock in the past. TODO maybe combine
-  // with columnRead
+  // Tracks row columns that were observed to have had a read lock in the past.
   private final Map<Bytes, Set<Column>> readLocksSeen = new HashMap<>();
   private final TxStats stats;
   private Notification notification;
@@ -187,7 +188,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   @Override
   public Map<Column, Bytes> get(Bytes row, Set<Column> columns) {
     checkIfOpen();
-    return getImpl(row, columns);
+    return getImpl(row, columns, kve -> {
+    });
   }
 
   @Override
@@ -236,7 +238,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     return ret;
   }
 
-  private Map<Column, Bytes> getImpl(Bytes row, Set<Column> columns) {
+  private Map<Column, Bytes> getImpl(Bytes row, Set<Column> columns,
+      Consumer<Entry<Key, Value>> locksSeen) {
 
     // TODO push visibility filtering to server side?
 
@@ -268,7 +271,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     Map<Column, Bytes> ret = new HashMap<>();
     Set<Column> readLockCols = null;
 
-    for (Entry<Key, Value> kve : new SnapshotScanner(env, opts, startTs, stats)) {
+    for (Entry<Key, Value> kve : new SnapshotScanner(env, opts, startTs, stats, locksSeen)) {
 
       Column col = ColumnUtil.convert(kve.getKey());
       if (shouldCopy && !columns.contains(col)) {
@@ -551,7 +554,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
    *
    * @param cd Commit data
    */
-  private void readUnread(CommitData cd) throws Exception {
+  private void readUnread(CommitData cd, Consumer<Entry<Key, Value>> locksSeen) throws Exception {
     // TODO make async
     // TODO need to keep track of ranges read (not ranges passed in, but actual data read... user
     // may not iterate over entire range
@@ -570,13 +573,13 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       }
     }
 
-    // TODO this could use the parallel snapshot scanner... instead of reading one at a time
     for (Entry<Bytes, Set<Column>> entry : columnsToRead.entrySet()) {
-      getImpl(entry.getKey(), entry.getValue());
+      getImpl(entry.getKey(), entry.getValue(), locksSeen);
     }
   }
 
-  private void checkForOrphanedReadLocks(CommitData cd) throws Exception {
+  private void checkForOrphanedReadLocks(CommitData cd, Map<Bytes, Set<Column>> locksResolved)
+      throws Exception {
 
     if (readLocksSeen.size() == 0) {
       return;
@@ -585,10 +588,19 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
     Map<Bytes, Set<Column>> rowColsToCheck = new HashMap<>();
 
     for (Entry<Bytes, Set<Column>> entry : cd.getRejected().entrySet()) {
+
+      Set<Column> resolvedColumns =
+          locksResolved.getOrDefault(entry.getKey(), Collections.emptySet());
+
       Set<Column> colsToCheck = null;
       Set<Column> readLockCols = readLocksSeen.get(entry.getKey());
       if (readLockCols != null) {
         for (Column candidate : Sets.intersection(readLockCols, entry.getValue())) {
+          if (resolvedColumns.contains(candidate)) {
+            //A write lock was seen and this is probably what caused the collision, no need to check this column for read locks.
+            continue;
+          }
+
           if (!isReadLock(updates.getOrDefault(entry.getKey(), Collections.emptyMap())
               .getOrDefault(candidate, EMPTY_BS))) {
             if (colsToCheck == null) {
@@ -629,10 +641,16 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   }
 
   private void checkForOrphanedLocks(CommitData cd) throws Exception {
-    readUnread(cd);
-    // TODO determine what rejected entries were resolved above and remove before checking read
-    // locks
-    checkForOrphanedReadLocks(cd);
+
+    Map<Bytes, Set<Column>> locksSeen = new HashMap<>();
+
+    readUnread(cd, kve -> {
+      Bytes row = ByteUtil.toBytes(kve.getKey().getRowData());
+      Column col = ColumnUtil.convert(kve.getKey());
+      locksSeen.computeIfAbsent(row, k -> new HashSet<>()).add(col);
+    });
+
+    checkForOrphanedReadLocks(cd, locksSeen);
   }
 
   private boolean checkForAckCollision(ConditionalMutation cm) {
@@ -1096,7 +1114,7 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       for (Entry<Column, Bytes> entry : updates.get(row).entrySet()) {
         if (isReadLock(entry.getValue())) {
           m.put(entry.getKey(), ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(startTs, true),
-              DelReadLockValue.encode(startTs, true));
+              DelReadLockValue.encodeRollback());
         } else {
           m.put(entry.getKey(), ColumnConstants.DEL_LOCK_PREFIX | startTs,
               DelLockValue.encodeRollback(false, true));
@@ -1344,6 +1362,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   }
 
   public SnapshotScanner newSnapshotScanner(Span span, Collection<Column> columns) {
-    return new SnapshotScanner(env, new SnapshotScanner.Opts(span, columns, false), startTs, stats);
+    return new SnapshotScanner(env, new SnapshotScanner.Opts(span, columns, false), startTs, stats,
+        kve -> {
+        });
   }
 }

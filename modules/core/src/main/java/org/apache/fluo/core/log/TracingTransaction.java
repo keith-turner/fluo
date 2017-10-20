@@ -326,7 +326,6 @@ public class TracingTransaction extends AbstractTransactionBase
 
   @Override
   public SnapshotBase withReadLock() {
-    // TODO trace log and test it!
     SnapshotBase rltx = tx.withReadLock();
 
     return new AbstractSnapshotBase() {

@@ -223,7 +223,7 @@ public class LockResolver {
         mut.put(k.getColumnFamilyData().toArray(), k.getColumnQualifierData().toArray(),
             k.getColumnVisibilityParsed(),
             ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(lockInfo.lockTs, true),
-            DelReadLockValue.encode(lockInfo.lockTs, true));
+            DelReadLockValue.encodeRollback());
       } else {
         mut.put(k.getColumnFamilyData().toArray(), k.getColumnQualifierData().toArray(),
             k.getColumnVisibilityParsed(), ColumnConstants.DEL_LOCK_PREFIX | lockInfo.lockTs,

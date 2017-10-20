@@ -58,7 +58,7 @@ public class ColumnUtil {
     if (isReadlock) {
       Flutation.put(env, m, col,
           ColumnConstants.RLOCK_PREFIX | ReadLockUtil.encodeTs(startTs, true),
-          DelReadLockValue.encode(commitTs, false));
+          DelReadLockValue.encodeCommit(commitTs));
     } else if (isWrite) {
       Flutation.put(env, m, col, ColumnConstants.WRITE_PREFIX | commitTs,
           WriteValue.encode(startTs, isPrimary, isDelete));
