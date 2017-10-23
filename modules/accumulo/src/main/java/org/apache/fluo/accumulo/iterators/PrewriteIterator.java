@@ -163,11 +163,12 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
         if (!readlock) {
           while (rlts > invalidationTime && colType == ColumnConstants.RLOCK_PREFIX) {
             if (ReadLockUtil.isDelete(ts)) {
-              if (rlts >= snaptime) {
-                hasTop = true;
-                return;
-              } else {
-                if (!DelReadLockValue.isRollback(source.getTopValue().get())) {
+              // ignore rolled back read locks, these should never prevent a write lock
+              if (!DelReadLockValue.isRollback(source.getTopValue().get())) {
+                if (rlts >= snaptime) {
+                  hasTop = true;
+                  return;
+                } else {
                   long rlockCommitTs =
                       DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
                   if (rlockCommitTs > snaptime) {
@@ -176,6 +177,7 @@ public class PrewriteIterator implements SortedKeyValueIterator<Key, Value> {
                   }
                 }
               }
+
 
               lastDeleteTs = rlts;
             } else {

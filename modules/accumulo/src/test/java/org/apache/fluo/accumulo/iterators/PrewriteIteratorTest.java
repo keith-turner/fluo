@@ -445,4 +445,30 @@ public class PrewriteIteratorTest {
   }
 
   //TODO test that aborted del rlock does not prevent write
+  @Test
+  public void testAbortedReadLock() {
+    // A read lock that was aborted or rolledback should not prevent a write lock
+    TestData input = new TestData();
+
+    input.add("0 f q DEL_RLOCK 55", "ABORT");
+    input.add("0 f q DEL_RLOCK 42", "50");
+
+    for (int i = 0; i < 2; i++) {
+      for (long startTs : new long[] {31, 40, 47}) {
+        TestData expected = new TestData();
+        expected.add("0 f q DEL_RLOCK 42", "50");
+
+        TestData output = new TestData(newPI(input, startTs), Range.exact("0", "f", "q"));
+
+        Assert.assertEquals(expected, output);
+      }
+
+      for (long startTs : new long[] {51, 55, 56}) {
+        TestData output = new TestData(newPI(input, startTs), Range.exact("0", "f", "q"));
+        Assert.assertEquals(0, output.data.size());
+      }
+      //add this for 2nd iteration, should ignore because delete rolls back
+      input.add("0 f q RLOCK 55", "0 f q");
+    }
+  }
 }
