@@ -1294,7 +1294,6 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
   private void postCommitPrimary(CommitData cd, long commitTs, Status mutationStatus)
       throws Exception {
     if (mutationStatus != Status.ACCEPTED) {
-      // TODO should locks be deleted ???
       cd.commitObserver.commitFailed(cd.getShortCollisionMessage());
     } else {
       if (stopAfterPrimaryCommit) {

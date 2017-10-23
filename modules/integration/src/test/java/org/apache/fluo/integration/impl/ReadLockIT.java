@@ -143,13 +143,13 @@ public class ReadLockIT extends ITBaseImpl {
     tx3.commit();
     tx3.close();
 
-    // TODO verify data
+    Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob", "bob:alice", "alice:bob"),
+        getDerivedEdges());
 
     try {
       tx1.commit();
       Assert.fail("Expected exception");
     } catch (CommitException ce) {
-      // ce.printStackTrace();
     }
 
     Assert.assertEquals(ImmutableSet.of("bob:joe", "joe:bob", "bob:alice", "alice:bob"),
@@ -174,13 +174,12 @@ public class ReadLockIT extends ITBaseImpl {
     tx1.commit();
     tx1.close();
 
-    // TODO verify data
+    Assert.assertEquals(0, getDerivedEdges().size());
 
     try {
       tx2.commit();
       Assert.fail("Expected exception");
     } catch (CommitException ce) {
-      // ce.printStackTrace();
     }
 
     // ensure the failed read lock on node1 is cleaned up

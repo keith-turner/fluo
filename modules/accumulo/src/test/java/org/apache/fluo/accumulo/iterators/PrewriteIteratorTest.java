@@ -444,7 +444,6 @@ public class PrewriteIteratorTest {
     Assert.assertEquals(expected, output);
   }
 
-  //TODO test that aborted del rlock does not prevent write
   @Test
   public void testAbortedReadLock() {
     // A read lock that was aborted or rolledback should not prevent a write lock
