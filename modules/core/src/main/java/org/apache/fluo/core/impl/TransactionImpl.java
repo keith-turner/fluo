@@ -597,7 +597,8 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
       if (readLockCols != null) {
         for (Column candidate : Sets.intersection(readLockCols, entry.getValue())) {
           if (resolvedColumns.contains(candidate)) {
-            //A write lock was seen and this is probably what caused the collision, no need to check this column for read locks.
+            // A write lock was seen and this is probably what caused the collision, no need to
+            // check this column for read locks.
             continue;
           }
 
