@@ -607,6 +607,8 @@ public class GarbageCollectionIteratorTest {
     input.add("0 f q DEL_RLOCK 42", "50");
     input.add("0 f q RLOCK 45", "0 f q");
     input.add("0 f q DEL_RLOCK 45", "53");
+    input.add("0 f q RLOCK 49", "0 f q");
+    input.add("0 f q DEL_RLOCK 49", "ROLLBACK");
 
     for (long oldestActiveTs : new long[] {20, 40, 42, 45, 46, 49, 50, 51, 52, 53, 54, 70}) {
       TestData expected = new TestData();
@@ -623,6 +625,7 @@ public class GarbageCollectionIteratorTest {
 
       expected.add("0 f q DEL_RLOCK 45", "53");
       expected.add("0 f q DEL_RLOCK 42", "50");
+      expected.add("0 f q DEL_RLOCK 49", "ROLLBACK");
 
       output = new TestData(newGCI(input, oldestActiveTs, false));
       Assert.assertEquals(expected, output);
@@ -649,6 +652,7 @@ public class GarbageCollectionIteratorTest {
 
       expected.add("0 f q DEL_RLOCK 45", "53");
       expected.add("0 f q DEL_RLOCK 42", "50");
+      expected.add("0 f q DEL_RLOCK 49", "ROLLBACK");
       output = new TestData(newGCI(input, oldestActiveTs, false));
       Assert.assertEquals(expected, output);
     }

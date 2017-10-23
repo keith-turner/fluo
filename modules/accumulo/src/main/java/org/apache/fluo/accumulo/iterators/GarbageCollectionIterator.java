@@ -268,15 +268,14 @@ public class GarbageCollectionIterator implements SortedKeyValueIterator<Key, Va
         if (rlts > invalidationTime) {
           if (isFullMajc) {
             if (isDelete) {
-
-              long rlockCommitTs;
               if (DelReadLockValue.isRollback(source.getTopValue().get())) {
-                //TODO test and think about this case... quickly made this change on Fri...
-                rlockCommitTs = rlts;
+                // can drop rolled back read lock delete markers on any full majc, do not need to consider gcTimestamp
+                keep = false;
               } else {
-                rlockCommitTs = DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+                long rlockCommitTs =
+                    DelReadLockValue.getCommitTimestamp(source.getTopValue().get());
+                keep = rlockCommitTs >= gcTimestamp;
               }
-              keep = rlockCommitTs >= gcTimestamp;
             } else {
               keep = lastReadLockDeleteTs != rlts;
             }
