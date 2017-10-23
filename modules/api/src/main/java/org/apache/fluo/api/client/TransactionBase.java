@@ -65,16 +65,16 @@ public interface TransactionBase extends SnapshotBase {
    * Normally when a Fluo transaction reads data and does not write to it, it will not collide with
    * other transactions making concurrent writes. However, all reads done using this method will
    * acquire a read lock. These read locks cause collisions with transactions doing concurrent
-   * writes. However, multiple transactions can get concurrent read locks on the same key without
-   * colliding.
+   * writes. However, multiple transactions can get concurrent read locks on the same row+col
+   * without colliding.
    *
    * <p>
    * Scanning with read locks is not supported. Attempting to call {@code withReadLock().scanner()}
-   * will throw an {@link UnsupportedOperationException}. This is because there is an infinite
+   * will throw an {@link UnsupportedOperationException}. This is because there are an infinite
    * amount of keys within a range and read locks can not be obtained on them all.
    *
    * <p>
-   * A transaction that only acquires read locks will do nothing at commit time.  In this case no
+   * A transaction that only acquires read locks will do nothing at commit time. In this case no
    * read locks are actually written and no collisions will ever occur.
    *
    * @since 1.2.0
