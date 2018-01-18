@@ -27,6 +27,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -864,22 +865,17 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
 
 
     CompletableFuture<Void> compose(CommitData cd) {
-      try {
-        return getMainOp(cd).thenComposeAsync(successful -> {
-          if (successful) {
-            if (nextStep != null) {
-              return nextStep.compose(cd);
-            } else {
-              return CompletableFuture.completedFuture(null);
-            }
+      return getMainOp(cd).thenComposeAsync(successful -> {
+        if (successful) {
+          if (nextStep != null) {
+            return nextStep.compose(cd);
           } else {
-            return getFailureOp(cd);
+            return CompletableFuture.completedFuture(null);
           }
-        }, env.getSharedResources().getAsyncCommitExecutor());
-      } catch (Exception e) {
-        cd.commitObserver.failed(e);
-        return null;
-      }
+        } else {
+          return getFailureOp(cd);
+        }
+      }, env.getSharedResources().getAsyncCommitExecutor());
     }
 
   }
@@ -1092,15 +1088,14 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
           // Does this need to be async?
           checkForOrphanedLocks(cd);
         } catch (Exception e) {
-          cd.commitObserver.failed(e);
+          throw new CompletionException(e);
         }
         return null;
       }, env.getSharedResources().getSyncCommitExecutor()).thenCompose(v -> {
         try {
           return rollbackLocks(cd);
         } catch (Exception e) {
-          cd.commitObserver.failed(e);
-          return null;
+          throw new CompletionException(e);
         }
       });
     }
@@ -1524,7 +1519,10 @@ public class TransactionImpl extends AbstractTransactionBase implements AsyncTra
         .andThen(new WriteNotificationsStep()).andThen(new CommitPrimaryStep())
         .andThen(new DeleteLocksStep()).andThen(new FinishCommitStep());
 
-    firstStep.compose(cd);
+    firstStep.compose(cd).exceptionally(throwable -> {
+      cd.commitObserver.failed(throwable);
+      return null;
+    });;
   }
 
   private void beginCommitAsyncTest(CommitData cd) {
