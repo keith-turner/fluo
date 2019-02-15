@@ -40,6 +40,7 @@ import org.apache.accumulo.core.client.admin.NewTableConfiguration;
 import org.apache.accumulo.core.iterators.IteratorUtil;
 import org.apache.accumulo.core.iterators.IteratorUtil.IteratorScope;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.fluo.accumulo.compaction.FluoCompactionStrategy;
 import org.apache.fluo.accumulo.iterators.GarbageCollectionIterator;
 import org.apache.fluo.accumulo.iterators.NotificationIterator;
 import org.apache.fluo.accumulo.summarizer.FluoSummarizer;
@@ -196,6 +197,11 @@ public class FluoAdminImpl implements FluoAdmin {
         config.setObserverJarsUrl(observerUrl);
       }
 
+      ntcProps.put(AccumuloProps.TABLE_MAJC_STRATEGY, FluoCompactionStrategy.class.getName()); // TODO
+                                                                                               // set
+                                                                                               // on
+                                                                                               // existing
+                                                                                               // tables
       ntcProps.put(AccumuloProps.TABLE_BLOCKCACHE_ENABLED, "true");
       ntcProps.put(AccumuloProps.TABLE_DELETE_BEHAVIOR, AccumuloProps.TABLE_DELETE_BEHAVIOR_VALUE);
 

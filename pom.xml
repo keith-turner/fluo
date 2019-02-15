@@ -138,6 +138,11 @@
         <version>${accumulo.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.apache.accumulo</groupId>
+        <artifactId>accumulo-tserver</artifactId>
+        <version>${accumulo.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-collections4</artifactId>
         <version>4.2</version>
